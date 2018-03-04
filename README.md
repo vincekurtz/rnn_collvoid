@@ -1,10 +1,10 @@
-### Time-Dependent Collision Avoidance based on a Recurrent Network
+# Time-Dependent Collision Avoidance based on a Recurrent Network
 
-## Basic Idea
+### Basic Idea
 
 After observing obstacle positions and velocities for a while, an LSTM network predicts future obstacle positions and uses these predictions for collision avoidace
 
-## Dependencies
+### Dependencies
 
 - ROS Kinetic
 - Stage simulator
@@ -12,7 +12,7 @@ After observing obstacle positions and velocities for a while, an LSTM network p
 - python
 - tensorflow
 
-## Usage
+### Usage
 
 Record data with `generate_data.launch`.
 

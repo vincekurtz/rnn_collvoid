@@ -11,6 +11,9 @@
 import csv
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+from matplotlib.collections import PatchCollection
 
 ####################
 # Helper Functions #
@@ -149,96 +152,179 @@ class DataContainer:
 
         return x, y
 
+def plot_trajectory(traj):
+    """
+    Make a matplotlib plot of the path of the robot
+    given a list of changes in position (could be predicted or actual)
+    """
+    # Set up axes
+    figs, axes = plt.subplots(2,1)
+    (ax1, ax2) = axes
 
-##################################################################################
-# Set up LSTM Network                                                            # 
-# Adapted from https://gist.github.com/siemanko/b18ce332bde37e156034e5d3f60f8a23 #
-##################################################################################
+    radius = .2
+    x = 0  # define initial position at the origin
+    y = 0
+    patches = []
+    xs = []
+    ys = []
+    t = 0
+    time = [t + 1 for i in range(len(traj))]
+    print(len(time))
 
-INPUT_SIZE = 2   # x and y velocities
-OUTPUT_SIZE = 2   # x and y positions
-RNN_HIDDEN = 20 
-TINY = 1e-6
-LEARNING_RATE = 0.01
+    # Unpack the data
+    for delta in traj:
+        x = x + delta[0][0]
+        y = y + delta[0][1]
+        circle = Circle((x,y), radius)
+        patches.append(circle)
+        xs.append(x)
+        ys.append(y)
 
-inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
-outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
+    # Plot state space trajectory
+    p = PatchCollection(patches, alpha=0.4)
+    ax1.add_collection(p)
+    ax1.autoscale_view()
+    ax1.set_title("State Space Trajectory")
+    ax1.set_xlabel("x")
+    ax1.set_ylabel("y")
 
-# Create a basic LSTM cell, there are other options too
-cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
+    # Plot x, y positions vs time
+    ax2.plot(xs)
+    ax2.plot(ys)
+    ax2.set_title("Position vs Time")
 
-# Add dropout
-cell = tf.nn.rnn_cell.DropoutWrapper(
-        cell,
-        input_keep_prob=0.8,
-        output_keep_prob=0.8,
-        state_keep_prob=0.9,
-        variational_recurrent=True,   # apply same dropout mask every step, as per https://arxiv.org/abs/1512.05287 
-        input_size=INPUT_SIZE,
-        dtype=tf.float32,
-        seed=None,
-        dropout_state_filter_visitor=None
-)
+    plt.show()
 
-# Create initial state as all zeros
-batch_size = tf.shape(inputs)[1]
-initial_state = cell.zero_state(batch_size, tf.float32)
+def plot_comparison(predicted_trajectories, actual_trajectory):
+    """
+    Plot multiple predicted trajectories (i.e. those generated with
+    dropout) and one actual trajectory.
 
-# Given a set of inputs, return a tuple with rnn outputs and rnn state
-rnn_outputs, rnn_states = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state, time_major=True)
+    Assumes that actual_trajectory (and each element of predicted_trajectories)
+    were created using a batch size of one. 
+    """
+    N = len(predicted_trajectories)  # the number of different predictions
+ 
+    # Set up multiple axes
+    figs, axes = plt.subplots(2,1)
+    (ax1, ax2) = axes
+    ax1.set_title("X position change")
+    ax2.set_title("Y position change")
 
-# Project rnn outputs to our OUTPUT_SIZE
-final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE, activation_fn=None)
-predicted_outputs = tf.map_fn(final_projection, rnn_outputs)
+    actual_x = actual_trajectory[:,0,0]
+    actual_y = actual_trajectory[:,0,1]
 
-# Compute the error that we want to minimize
-error = tf.losses.huber_loss(outputs, predicted_outputs)
-#error = -(outputs * tf.log(predicted_outputs + TINY) + (1.0 - outputs) * tf.log(1.0 - predicted_outputs + TINY))
-#error = tf.reduce_mean(error)
+    for i in range(N):
+        pred_x = predicted_trajectories[i][:,0,0]
+        pred_y = predicted_trajectories[i][:,0,1]
+        ax1.plot(pred_x, color="b", alpha=0.5)
+        ax2.plot(pred_y, color="b", alpha=0.5)
 
-# Optimization
-train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(error)
-
-# Accuracy measurment
-accuracy = tf.reduce_mean(tf.abs(outputs - predicted_outputs))
-
-###########################
-#  Run the Training Loop! #
-###########################
-
-NUM_EPOCHS = 50
-ITERATIONS_PER_EPOCH = 2
-NUM_STEPS = 100
-BATCH_SIZE = 2
+    ax1.plot(actual_x, color="r")
+    ax1.set_xlabel("timestep")
+    ax1.set_ylabel("position change")
+    ax2.plot(actual_y, color="r")
+    ax2.set_xlabel("timestep")
+    ax2.set_ylabel("position change")
+    plt.show()
 
 
-datafile = "/home/vjkurtz/catkin_ws/src/rnn_collvoid/data/test_data.csv"
-mydata = DataContainer(datafile)
+def train(datafile, plot_test=True):
+    ##################################################################################
+    # Set up LSTM Network                                                            # 
+    # Adapted from https://gist.github.com/siemanko/b18ce332bde37e156034e5d3f60f8a23 #
+    ##################################################################################
 
-session = tf.Session()
-session.run(tf.global_variables_initializer())
+    INPUT_SIZE = 2   # x and y velocities
+    OUTPUT_SIZE = 2   # x and y positions
+    RNN_HIDDEN = 256 
+    LEARNING_RATE = 0.01
 
-for epoch in range(NUM_EPOCHS):
-    epoch_error = 0
-    mydata.reset()   # retrain on the same data just for now, for testing purposes
-    for _ in range(ITERATIONS_PER_EPOCH):
-        # Get training data for the next batch
-        x, y = mydata.get_next_batch(NUM_STEPS, BATCH_SIZE)
+    inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
+    outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
 
-        # train_fn triggers backprop
-        epoch_error += session.run([error, train_fn], { inputs: x, outputs: y})[0]
+    # Create a basic LSTM cell, there are other options too
+    cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
 
-    epoch_error /= ITERATIONS_PER_EPOCH
-    print("Epoch %d, train error: %.4f" % (epoch, epoch_error))
+    # Add dropout
+    cell = tf.nn.rnn_cell.DropoutWrapper(
+            cell,
+            input_keep_prob=0.9,
+            output_keep_prob=0.9,
+            state_keep_prob=1.0,
+            variational_recurrent=False,   # apply same dropout mask every step, as per https://arxiv.org/abs/1512.05287 
+                                           # seems to lead to strange behavior where 0 is predicted all the time
+            input_size=INPUT_SIZE,
+            dtype=tf.float32,
+            seed=None
+    )
 
-# Test on the test set!
-test_x, test_y = mydata.get_next_batch(num_steps=NUM_STEPS, batch_size=1, dataset="Test")
-print("")
-predict1 = session.run(predicted_outputs, { inputs: test_x, outputs: test_y })
-predict2 = session.run(predicted_outputs, { inputs: test_x, outputs: test_y })
+    # Create initial state as all zeros
+    batch_size = tf.shape(inputs)[1]
+    initial_state = cell.zero_state(batch_size, tf.float32)
 
-for i in range(len(predict1)):
-    print("%s   ---->    %s    ||    %s" % (test_y[i][0], predict1[i][0], predict2[i][0]))
+    # Given a set of inputs, return a tuple with rnn outputs and rnn state
+    rnn_outputs, rnn_states = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state, time_major=True)
 
-session.close()
+    # Project rnn outputs to our OUTPUT_SIZE
+    final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE, activation_fn=None)
+    predicted_outputs = tf.map_fn(final_projection, rnn_outputs)
 
+    # Compute the error that we want to minimize
+    error = tf.losses.huber_loss(outputs, predicted_outputs)
+
+    # Optimization
+    train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(error)
+
+    # Accuracy measurment
+    accuracy = tf.reduce_mean(tf.abs(outputs - predicted_outputs))
+
+    ###########################
+    #  Run the Training Loop! #
+    ###########################
+
+    NUM_EPOCHS = 20
+    ITERATIONS_PER_EPOCH = 10
+    NUM_STEPS = 100
+    BATCH_SIZE = 2
+
+    mydata = DataContainer(datafile)
+
+    session = tf.Session()
+    session.run(tf.global_variables_initializer())
+
+    for epoch in range(NUM_EPOCHS):
+        epoch_error = 0
+        mydata.reset()   # retrain on the same data just for now, for testing purposes
+        for _ in range(ITERATIONS_PER_EPOCH):
+            # Get training data for the next batch
+            x, y = mydata.get_next_batch(NUM_STEPS, BATCH_SIZE)
+
+            # train_fn triggers backprop
+            epoch_error += session.run([error, train_fn], { inputs: x, outputs: y})[0]
+
+        epoch_error /= ITERATIONS_PER_EPOCH
+        print("Epoch %d, train error: %.6f" % (epoch, epoch_error))
+
+    # Save the trained model
+    save_name = "/home/vjkurtz/catkin_ws/src/rnn_collvoid/tmp/LSTM_saved_model"
+    saver = tf.train.Saver()
+    saver.save(session, save_name)
+
+    if plot_test:
+        # Test on the test set!
+        test_x, test_y = mydata.get_next_batch(num_steps=NUM_STEPS, batch_size=1, dataset="Test")
+
+        # Use dropout to get a bunch of predictions
+        predicts = []
+        for i in range(100):
+            p = session.run(predicted_outputs, { inputs: test_x, outputs: test_y })
+            predicts.append(p)
+
+        plot_comparison(predicts, test_y)
+    
+    session.close()
+
+if __name__=="__main__":
+    datafile = "/home/vjkurtz/catkin_ws/src/rnn_collvoid/data/test_data.csv"
+    train(datafile)

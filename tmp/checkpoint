@@ -1,2 +1,0 @@
-model_checkpoint_path: "/home/vjkurtz/catkin_ws/src/rnn_collvoid/tmp/LSTM_saved_model"
-all_model_checkpoint_paths: "/home/vjkurtz/catkin_ws/src/rnn_collvoid/tmp/LSTM_saved_model"

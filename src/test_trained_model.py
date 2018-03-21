@@ -9,74 +9,107 @@
 
 import tensorflow as tf
 import numpy as np
-from train_lstm import *
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+from matplotlib.collections import PatchCollection
+from data_container import DataContainer
+from network_variables import *
 
-base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid"
-test_set_file = "%s/data/test_data.csv" % base_dir
+def plot_trajectory(traj):
+    """
+    Make a matplotlib plot of the path of the robot
+    given a list of changes in position (could be predicted or actual)
+    """
+    # Set up axes
+    figs, axes = plt.subplots(2,1)
+    (ax1, ax2) = axes
 
-# Define all global variables that make up our network structure
+    radius = .2
+    x = 0  # define initial position at the origin
+    y = 0
+    patches = []
+    xs = []
+    ys = []
+    t = 0
+    time = [t + 1 for i in range(len(traj))]
+    print(len(time))
 
-INPUT_SIZE = 2   # x and y velocities
-OUTPUT_SIZE = 2   # x and y positions
-RNN_HIDDEN = 256
-LEARNING_RATE = 0.01
+    # Unpack the data
+    for delta in traj:
+        x = x + delta[0][0]
+        y = y + delta[0][1]
+        circle = Circle((x,y), radius)
+        patches.append(circle)
+        xs.append(x)
+        ys.append(y)
 
-inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
-outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
+    # Plot state space trajectory
+    p = PatchCollection(patches, alpha=0.4)
+    ax1.add_collection(p)
+    ax1.autoscale_view()
+    ax1.set_title("State Space Trajectory")
+    ax1.set_xlabel("x")
+    ax1.set_ylabel("y")
 
-# Create a basic LSTM cell, there are other options too
-cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
+    # Plot x, y positions vs time
+    ax2.plot(xs)
+    ax2.plot(ys)
+    ax2.set_title("Position vs Time")
 
-# Add dropout
-cell = tf.nn.rnn_cell.DropoutWrapper(
-	cell,
-	input_keep_prob=0.9,
-	output_keep_prob=0.9,
-	state_keep_prob=1.0,
-	variational_recurrent=False,
-	input_size=INPUT_SIZE,
-	dtype=tf.float32,
-	seed=None
-)
+    plt.show()
 
-# Create initial state as all zeros
-batch_size = tf.shape(inputs)[1]
-initial_state = cell.zero_state(batch_size, tf.float32)
+def plot_comparison(predicted_trajectories, actual_trajectory):
+    """
+    Plot multiple predicted trajectories (i.e. those generated with
+    dropout) and one actual trajectory.
 
-# Given a set of inputs, return a tuple with rnn outputs and rnn state
-rnn_outputs, rnn_states = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state, time_major=True)
+    Assumes that actual_trajectory (and each element of predicted_trajectories)
+    were created using a batch size of one. 
+    """
+    N = len(predicted_trajectories)  # the number of different predictions
+ 
+    # Set up multiple axes
+    figs, axes = plt.subplots(2,1)
+    (ax1, ax2) = axes
+    ax1.set_title("X position change")
+    ax2.set_title("Y position change")
 
-# Project rnn outputs to our OUTPUT_SIZE
-final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE, activation_fn=None)
-predicted_outputs = tf.map_fn(final_projection, rnn_outputs)
+    actual_x = actual_trajectory[:,0,0]
+    actual_y = actual_trajectory[:,0,1]
 
-# Compute the error that we want to minimize
-error = tf.losses.huber_loss(outputs, predicted_outputs)
-
-# Optimization
-train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(error)
-
-# Accuracy measurment
-accuracy = tf.reduce_mean(tf.abs(outputs - predicted_outputs))
-
-
-with tf.Session() as sess:
-    # Initialize global variables
-    sess.run(tf.global_variables_initializer())
-
-    # Load saved session
-    saver = tf.train.Saver()
-    saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
-
-    # Load test/validation data
-    test_set = DataContainer(test_set_file)
-    inpt, otpt = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")
-
-    # Plot predicted and actual trajectory 
-    predicts = [] 
-    N = 100   # number of dropout samples to use
     for i in range(N):
-        pred = sess.run(predicted_outputs, { inputs: inpt, outputs: otpt })
-        predicts.append(pred)
+        pred_x = predicted_trajectories[i][:,0,0]
+        pred_y = predicted_trajectories[i][:,0,1]
+        ax1.plot(pred_x, color="b", alpha=0.5)
+        ax2.plot(pred_y, color="b", alpha=0.5)
 
-    plot_comparison(predicts, otpt)
+    ax1.plot(actual_x, color="r")
+    ax1.set_xlabel("timestep")
+    ax1.set_ylabel("position change")
+    ax2.plot(actual_y, color="r")
+    ax2.set_xlabel("timestep")
+    ax2.set_ylabel("position change")
+    plt.show()
+
+if __name__=="__main__":
+    with tf.Session() as sess:
+        # Initialize global variables
+        sess.run(tf.global_variables_initializer())
+
+        # Load saved session
+        saver = tf.train.Saver()
+        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
+
+        # Load test/validation data
+        test_set = DataContainer(test_set_file)
+        inpt, otpt = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")
+
+        # Plot predicted and actual trajectory 
+        predicts = [] 
+        N = 100   # number of dropout samples to use
+        for i in range(N):
+            pred = sess.run(predicted_outputs, { inputs: inpt, outputs: otpt })
+            predicts.append(pred)
+
+        plot_comparison(predicts, otpt)
+        plot_trajectory(otpt)

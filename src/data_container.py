@@ -34,8 +34,8 @@ class DataContainer:
             - Subsequent lines consist of [x,y,xdot,ydot] measurements
 
         Return input-output data in two numpy arrays of the following format:
-            Input: [[xdot0, ydot0], ...]
-            Output [[x1-x0, y1-y0], ...]
+            Input:  [[xdot0, ydot0], ...]
+            Output: [[x1-x0, y1-y0, xdot1, ydot1], ...]
         """
         raw_data = []
         myinput = []
@@ -58,13 +58,16 @@ class DataContainer:
             y0 = float(raw_data[i][1])
             xdot0 = float(raw_data[i][2])
             ydot0 = float(raw_data[i][3])
+            
             x1 = float(raw_data[i+1][0])
             y1 = float(raw_data[i+1][1])
+            xdot1 = float(raw_data[i+1][2])
+            ydot1 = float(raw_data[i+1][3])
 
             myinput.append([xdot0, ydot0])
-            myoutput.append([float("{0:.4f}".format(x1-x0)), float("{0:.4f}".format(y1-y0))])  # limit to 4 decimals
+            myoutput.append([x1-x0, y1-y0, xdot1, ydot1])
 
-        # Converty to np arrays and store
+        # Convert to np arrays and store
         self.X = np.asarray(myinput)
         self.Y = np.asarray(myoutput)
         self.N = len(self.X)
@@ -89,13 +92,13 @@ class DataContainer:
         """
         Give a set of training data and a starting index, generate a batch as follows:
 
-        x: np.array
-            2D velocity in cartesian space
-        y: np.array
-            Subsequent change in position at the next time step
+        x (input): np.array
+            current velocity
+        y (output): np.array
+            Subsequent change in position and subsequent velocity
         """
         x = np.empty((num_steps, batch_size, 2))
-        y = np.empty((num_steps, batch_size, 2))
+        y = np.empty((num_steps, batch_size, 4))
 
         # Determine which dataset to use
         if dataset == "Train":
@@ -115,14 +118,21 @@ class DataContainer:
             raise AssertionError("Not enough data! You asked for %s new data points, but I only have %s left" % (batch_size*num_steps, len(input_data)-index))
 
         for i in range(batch_size):
-            xdot = input_data[index:index+num_steps][:,0]
-            ydot = input_data[index:index+num_steps][:,1]
-            dx = output_data[index:index+num_steps][:,0]
-            dy = output_data[index:index+num_steps][:,1]
-            x[:, i, 0] = xdot
-            x[:, i, 1] = ydot
-            y[:, i, 0] = dx
-            y[:, i, 1] = dy
+            xdot0 = input_data[index:index+num_steps][:,0]
+            ydot0 = input_data[index:index+num_steps][:,1]
+
+            deltax = output_data[index:index+num_steps][:,0]
+            deltay = output_data[index:index+num_steps][:,1]
+            xdot1 = input_data[index:index+num_steps][:,0]
+            ydot1 = input_data[index:index+num_steps][:,1]
+
+            x[:, i, 0] = xdot0
+            x[:, i, 1] = ydot0
+
+            y[:, i, 0] = deltax
+            y[:, i, 1] = deltay
+            y[:, i, 2] = xdot1
+            y[:, i, 3] = ydot1
 
             index += num_steps
 

@@ -22,7 +22,7 @@ def train(datafile, plot_test=True):
     Assues that global network variables (as in network_variables.py) are defined
     """
 
-    NUM_EPOCHS = 20
+    NUM_EPOCHS = 50
     ITERATIONS_PER_EPOCH = 10
     NUM_STEPS = 100
     BATCH_SIZE = 2
@@ -46,9 +46,11 @@ def train(datafile, plot_test=True):
             print("Epoch %d, train error: %.6f" % (epoch, epoch_error))
 
         # Save the trained model
+        print("Saving the model...")
         save_name = "/home/vjkurtz/catkin_ws/src/rnn_collvoid/tmp/LSTM_saved_model"
         saver = tf.train.Saver()
         saver.save(session, save_name)
+        print("done.")
 
         if plot_test:
             # Test on the test set!

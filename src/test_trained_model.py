@@ -10,6 +10,8 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cmx
+import matplotlib.colors as colors
 from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
 from data_container import DataContainer
@@ -69,29 +71,106 @@ def plot_comparison(predicted_trajectories, actual_trajectory):
     N = len(predicted_trajectories)  # the number of different predictions
  
     # Set up multiple axes
-    figs, axes = plt.subplots(2,1)
-    (ax1, ax2) = axes
+    figs, axes = plt.subplots(2,2)
+    ax1 = axes[0,0]
+    ax2 = axes[1,0]
+    ax3 = axes[0,1]
+    ax4 = axes[1,1]
     ax1.set_title("X position change")
     ax2.set_title("Y position change")
+    ax3.set_title("X velocity")
+    ax4.set_title("Y velocity")
+
+    print(actual_trajectory.shape)
 
     actual_x = actual_trajectory[:,0,0]
     actual_y = actual_trajectory[:,0,1]
+    actual_dx = actual_trajectory[:,0,2]
+    actual_dy = actual_trajectory[:,0,3]
 
     for i in range(N):
         pred_x = predicted_trajectories[i][:,0,0]
         pred_y = predicted_trajectories[i][:,0,1]
+        pred_dx = predicted_trajectories[i][:,0,2]
+        pred_dy = predicted_trajectories[i][:,0,3]
         ax1.plot(pred_x, color="b", alpha=0.5)
         ax2.plot(pred_y, color="b", alpha=0.5)
+        ax3.plot(pred_dx, color="b", alpha=0.5)
+        ax4.plot(pred_dy, color="b", alpha=0.5)
 
     ax1.plot(actual_x, color="r")
-    ax1.set_xlabel("timestep")
-    ax1.set_ylabel("position change")
+    #ax1.set_xlabel("timestep")
+    #ax1.set_ylabel("position change")
     ax2.plot(actual_y, color="r")
-    ax2.set_xlabel("timestep")
-    ax2.set_ylabel("position change")
+    #ax2.set_xlabel("timestep")
+    #ax2.set_ylabel("position change")
+    ax3.plot(actual_dx, color="r")
+    ax4.plot(actual_dy, color="r")
     plt.show()
 
-if __name__=="__main__":
+def funnel_test():
+    """
+    Based on an initial observation, propagate an estimate of position forward
+    in time
+    """
+    base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid" 
+    test_set_file = "%s/data/test_data.csv" % base_dir 
+
+    with tf.Session() as sess:
+        # Initialize global variables
+        sess.run(tf.global_variables_initializer())
+
+        # Load saved session
+        saver = tf.train.Saver()
+        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
+
+        # Load initial observations
+        test_set = DataContainer(test_set_file)
+        observations, _ = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+
+
+        # Plot predicted next positions
+        num_runs = 10
+        run_length = 15
+
+        # Matplotlib setup to change colors as we move along the trajectory
+        color_map = cmx.ScalarMappable(
+                norm = colors.Normalize(vmin=0, vmax=run_length),
+                cmap = plt.get_cmap('jet')
+                )
+
+        for j in range(num_runs):
+            # Set starting position
+            x = 0
+            y = 0
+            for i in range(run_length):
+                # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
+                all_pred = sess.run(predicted_outputs, { inputs: observations, outputs: _ })
+                # We're really only interested in the last prediction: the one for the next step
+                next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
+
+                # Update positions
+                x += next_pred[0]
+                y += next_pred[1]
+
+                # Update velocities for the next time step
+                observations = np.append(observations[1:], [[ next_pred[2:] ]], axis=0)
+                
+                # add to the plot
+                point_color = color_map.to_rgba(i)
+                plt.scatter(x,y, color=point_color)
+       
+        plt.xlabel("x position")
+        plt.ylabel("y position")
+        plt.show()
+
+def simple_test():
+    """
+    Simply plot input and output
+    """
+    base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid" 
+    test_set_file = "%s/data/test_data.csv" % base_dir 
+
     with tf.Session() as sess:
         # Initialize global variables
         sess.run(tf.global_variables_initializer())
@@ -112,4 +191,7 @@ if __name__=="__main__":
             predicts.append(pred)
 
         plot_comparison(predicts, otpt)
-        plot_trajectory(otpt)
+
+if __name__=="__main__":
+    #simple_test()
+    funnel_test()

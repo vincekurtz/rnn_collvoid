@@ -8,13 +8,10 @@
 import tensorflow as tf
 import numpy as np
 
-base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid"
-test_set_file = "%s/data/test_data.csv" % base_dir
-
 # Define all global variables that make up our network structure
 
-INPUT_SIZE = 2   # x and y velocities
-OUTPUT_SIZE = 2   # x and y positions
+INPUT_SIZE = 2   # current 2D velocities
+OUTPUT_SIZE = 4   # Next 2D velocities 2D change in position
 RNN_HIDDEN = 256
 LEARNING_RATE = 0.01
 

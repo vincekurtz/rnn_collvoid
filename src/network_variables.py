@@ -20,6 +20,7 @@ outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
 
 # Create a basic LSTM cell, there are other options too
 cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
+#cell = tf.nn.rnn_cell.BasicRNNCell(RNN_HIDDEN)
 
 # Add dropout
 cell = tf.nn.rnn_cell.DropoutWrapper(

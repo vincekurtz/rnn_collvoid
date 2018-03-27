@@ -24,6 +24,9 @@ try:
     speed = 1   # How fast to move forward and back
     duration = 1  # How long to move each way (in seconds)
 
+    # Set a constant y velocity
+    cmd_vel.linear.y = 0.1
+
     while not rospy.is_shutdown():
         for i in range(duration*hz):
             # Move forward...

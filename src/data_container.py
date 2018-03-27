@@ -88,7 +88,7 @@ class DataContainer:
         self.test_X = self.X[cutoff:]
         self.test_Y = self.Y[cutoff:]
     
-    def get_next_batch(self, num_steps, batch_size, dataset="Train"):
+    def get_next_batch(self, num_steps, batch_size, dataset="Train", add_noise=False):
         """
         Give a set of training data and a starting index, generate a batch as follows:
 
@@ -126,13 +126,26 @@ class DataContainer:
             xdot1 = input_data[index:index+num_steps][:,0]
             ydot1 = input_data[index:index+num_steps][:,1]
 
-            x[:, i, 0] = xdot0
-            x[:, i, 1] = ydot0
+            if add_noise:
+                # add a bit of Gaussian noise to the input and output
+                sigma_position = 0.01
+                sigma_velocity = 0.01
 
-            y[:, i, 0] = deltax
-            y[:, i, 1] = deltay
-            y[:, i, 2] = xdot1
-            y[:, i, 3] = ydot1
+                x[:, i, 0] = xdot0 + np.random.normal(0,sigma_velocity, num_steps)
+                x[:, i, 1] = ydot0 + np.random.normal(0,sigma_velocity, num_steps)
+
+                y[:, i, 0] = deltax + np.random.normal(0,sigma_position, num_steps)
+                y[:, i, 1] = deltay + np.random.normal(0,sigma_position, num_steps)
+                y[:, i, 2] = xdot1 + np.random.normal(0,sigma_velocity, num_steps)
+                y[:, i, 3] = ydot1 + np.random.normal(0,sigma_velocity, num_steps)
+            else:
+                x[:, i, 0] = xdot0
+                x[:, i, 1] = ydot0
+
+                y[:, i, 0] = deltax
+                y[:, i, 1] = deltay
+                y[:, i, 2] = xdot1
+                y[:, i, 3] = ydot1
 
             index += num_steps
 

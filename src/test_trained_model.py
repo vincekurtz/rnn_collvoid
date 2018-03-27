@@ -16,6 +16,8 @@ from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection
 from data_container import DataContainer
 from network_variables import *
+    
+base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid" 
 
 def plot_trajectory(traj):
     """
@@ -81,8 +83,6 @@ def plot_comparison(predicted_trajectories, actual_trajectory):
     ax3.set_title("X velocity")
     ax4.set_title("Y velocity")
 
-    print(actual_trajectory.shape)
-
     actual_x = actual_trajectory[:,0,0]
     actual_y = actual_trajectory[:,0,1]
     actual_dx = actual_trajectory[:,0,2]
@@ -106,14 +106,54 @@ def plot_comparison(predicted_trajectories, actual_trajectory):
     #ax2.set_ylabel("position change")
     ax3.plot(actual_dx, color="r")
     ax4.plot(actual_dy, color="r")
+
+    # set axes limits
+    ax1.set_ylim(-0.4,0.4)
+    ax2.set_ylim(-0.4,0.4)
+    ax3.set_ylim(-2, 2)
+    ax4.set_ylim(-0.4, 0.4)
+
     plt.show()
+
+def get_predictions(observations, num_pred):
+    """
+    Given a sequence of observations, use dropout to generate num_pred unique outputs
+
+    Returns:
+        a list of num_pred outputs
+        a list of num_pred updated observation sequences 
+    """
+    outputs = []
+    new_observations = []
+
+    with tf.Session() as sess:
+        # Initialize global variables
+        sess.run(tf.global_variables_initializer())
+
+        # Load saved session
+        saver = tf.train.Saver()
+        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
+
+        for i in range(num_pred):
+            # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
+            all_pred = sess.run(predicted_outputs, { inputs: observations })
+            # We're really only interested in the last prediction: the one for the next step
+            next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
+            
+            # Update velocities for the next time step
+            next_obs = np.append(observations[1:], [[ next_pred[2:] ]], axis=0)
+
+            outputs.append(next_pred)
+            new_observations.append(next_obs)
+
+    return (outputs, new_observations)
+
 
 def funnel_test():
     """
     Based on an initial observation, propagate an estimate of position forward
-    in time
+    in time. Do this several times repeatedly to generate a funnel
     """
-    base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid" 
     test_set_file = "%s/data/test_data.csv" % base_dir 
 
     with tf.Session() as sess:
@@ -126,12 +166,12 @@ def funnel_test():
 
         # Load initial observations
         test_set = DataContainer(test_set_file)
-        observations, _ = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+        observations, _ = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test", add_noise=True)  # we'll ignore the actual output data in this case
 
 
         # Plot predicted next positions
-        num_runs = 10
-        run_length = 15
+        num_runs = 50
+        run_length = 25
 
         # Matplotlib setup to change colors as we move along the trajectory
         color_map = cmx.ScalarMappable(
@@ -164,11 +204,44 @@ def funnel_test():
         plt.ylabel("y position")
         plt.show()
 
+
+def simple_test_with_forward_propagation():
+    """
+    Plot output, but with past inputs propagated forward
+    """
+    test_set_file = "%s/data/test_data.csv" % base_dir 
+    test_set = DataContainer(test_set_file)
+
+    initial_input, initial_output = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")
+
+
+def funnel_test_two():
+    """
+    Based on an initial observation, propagate an estimate of position forward
+    in time. Do this by generating several predictions, then propagating forward several predictions
+    for each of those, in a tree-like manner
+    """
+    num_samples = 2
+    test_set_file = "%s/data/test_data.csv" % base_dir 
+    
+    # Load initial observations
+    test_set = DataContainer(test_set_file)
+    observations, _ = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+
+    # Plot the initial point, which we take to be the origin
+    
+    
+    pred, new_obs = get_predictions(observations, num_samples)
+    for i in range(num_samples):
+        plt.scatter(pred[i][0], pred[i][1])  # plot x and y for this round
+        
+    plt.show()
+
+
 def simple_test():
     """
     Simply plot input and output
     """
-    base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid" 
     test_set_file = "%s/data/test_data.csv" % base_dir 
 
     with tf.Session() as sess:

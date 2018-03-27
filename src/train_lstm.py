@@ -25,7 +25,7 @@ def train(datafile, plot_test=True):
     NUM_EPOCHS = 50
     ITERATIONS_PER_EPOCH = 10
     NUM_STEPS = 100
-    BATCH_SIZE = 2
+    BATCH_SIZE = 3
 
     mydata = DataContainer(datafile)
 
@@ -37,7 +37,7 @@ def train(datafile, plot_test=True):
             mydata.reset()   # retrain on the same data just for now, for testing purposes
             for _ in range(ITERATIONS_PER_EPOCH):
                 # Get training data for the next batch
-                x, y = mydata.get_next_batch(NUM_STEPS, BATCH_SIZE)
+                x, y = mydata.get_next_batch(NUM_STEPS, BATCH_SIZE, add_noise=True)
 
                 # train_fn triggers backprop
                 epoch_error += session.run([error, train_fn], { inputs: x, outputs: y})[0]
@@ -54,7 +54,7 @@ def train(datafile, plot_test=True):
 
         if plot_test:
             # Test on the test set!
-            test_x, test_y = mydata.get_next_batch(num_steps=NUM_STEPS, batch_size=1, dataset="Test")
+            test_x, test_y = mydata.get_next_batch(num_steps=NUM_STEPS, batch_size=1, dataset="Test", add_noise=True)
 
             # Use dropout to get a bunch of predictions
             predicts = []

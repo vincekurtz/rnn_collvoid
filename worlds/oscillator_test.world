@@ -118,5 +118,5 @@ define obst model
 #obst( pose [ 0.0 0.0 0 45.000000 ] name "block" color "black")
 
 # robots added here automatically
-roomba( pose [ -1.7 0 0 180 ] name "robot_0" color "SlateGray")
+omni_robot( pose [ -6.7 0 0 180 ] name "robot_0" color "SlateGray")
 roomba( pose [ -2.0 -2 0 90 ] name "robot_1" color "black")

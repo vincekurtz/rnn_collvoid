@@ -120,7 +120,7 @@ def get_predictions(observations, num_pred):
     Given a sequence of observations, use dropout to generate num_pred unique outputs
 
     Returns:
-        a list of num_pred outputs
+        a (num_pred x output_size) np array of outputs
         a list of num_pred updated observation sequences 
     """
     outputs = []
@@ -146,6 +146,7 @@ def get_predictions(observations, num_pred):
             outputs.append(next_pred)
             new_observations.append(next_obs)
 
+    outputs = np.asarray(outputs)
     return (outputs, new_observations)
 
 
@@ -170,7 +171,7 @@ def funnel_test():
 
 
         # Plot predicted next positions
-        num_runs = 50
+        num_runs = 20
         run_length = 25
 
         # Matplotlib setup to change colors as we move along the trajectory
@@ -183,6 +184,9 @@ def funnel_test():
             # Set starting position
             x = 0
             y = 0
+
+            allx = []  # so we can do a line plot as well
+            ally = []
             for i in range(run_length):
                 # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
                 all_pred = sess.run(predicted_outputs, { inputs: observations, outputs: _ })
@@ -199,6 +203,11 @@ def funnel_test():
                 # add to the plot
                 point_color = color_map.to_rgba(i)
                 plt.scatter(x,y, color=point_color)
+
+                allx.append(x)
+                ally.append(y)
+
+            plt.plot(allx, ally, color="grey", zorder=0)  # plot connecting lines behind dots
        
         plt.xlabel("x position")
         plt.ylabel("y position")
@@ -218,22 +227,50 @@ def simple_test_with_forward_propagation():
 def funnel_test_two():
     """
     Based on an initial observation, propagate an estimate of position forward
-    in time. Do this by generating several predictions, then propagating forward several predictions
-    for each of those, in a tree-like manner
+    in time. Do this by generating several predictions, estimating an underlying
+    distribution, sampling from this distribution (or taking MLE/MMSE/mean?), and using that sample to start
+    the process over again.
     """
-    num_samples = 2
+    
     test_set_file = "%s/data/test_data.csv" % base_dir 
+    
+    num_samples = 10  # number of samples to use to estimate the underlying distribution
+    num_steps = 50   # number of steps to go into the future
     
     # Load initial observations
     test_set = DataContainer(test_set_file)
     observations, _ = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
 
-    # Plot the initial point, which we take to be the origin
-    
-    
-    pred, new_obs = get_predictions(observations, num_samples)
-    for i in range(num_samples):
-        plt.scatter(pred[i][0], pred[i][1])  # plot x and y for this round
+    # Matplotlib setup to change colors as we move along the trajectory
+    color_map = cmx.ScalarMappable(
+            norm = colors.Normalize(vmin=0, vmax=num_steps),
+            cmap = plt.get_cmap('jet')
+            )
+
+    num_dots = 1000  # number of dots to draw for each gaussian
+    x = 0
+    y = 0
+    for i in range(num_steps):
+        # Get sample predictions
+        pred, new_obs = get_predictions(observations, num_samples)
+
+        # Estimate the underlying distribution
+        mu = np.mean(pred, axis=0)   # sample mean
+        sigma = np.cov(pred.T)       # sample covariance
+
+        # Update the observations
+        next_pred = mu   # choose the mean as the basis of continued observations
+        observations = np.append(observations[1:], [[ next_pred[2:] ]], axis=0)
+        
+        # Add to the plot
+        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, num_dots).T   # get a bunch of samples from this distribution
+        point_color = color_map.to_rgba(i)
+        plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
+
+        x += mu[0]  # update list of best predictions for plotting
+        y += mu[1]
+
+        #plt.plot(px, py, 'b.')
         
     plt.show()
 
@@ -267,4 +304,5 @@ def simple_test():
 
 if __name__=="__main__":
     #simple_test()
-    funnel_test()
+    #funnel_test()
+    funnel_test_two()

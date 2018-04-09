@@ -183,6 +183,7 @@ def main():
 
     tao = 0.1  # time between samples, in seconds
     buffer_length = 20   # number of observations to predict based on
+    num_samples = 10     # number of passes used to approximate the distribution of predicted next positions
     try:
         rospy.init_node('rnn_observer')
         odometer = rospy.Subscriber("/robot_0/base_pose_ground_truth", Odometry, odom_callback)
@@ -192,40 +193,63 @@ def main():
 
         rospy.sleep(tao)
 
-        plt.axis([-8, -5, -3, 0])
+        with tf.Session() as sess:  # start up the tensorflow session
+            # Initialize global variables
+            sess.run(tf.global_variables_initializer())
 
-        while not rospy.is_shutdown():
-            # keep track of time
-            start_time = rospy.get_time()
+            # Load saved session
+            saver = tf.train.Saver()
+            saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
 
-            # Get latest measurments
-            meas = get_latest_meas(x,y)
-            x += meas[0]    # update the latest positions
-            y += meas[1]
 
-            # Update the observation buffer
-            if len(observations) < buffer_length:
-                # simply add to the buffer
-                observations = np.append(observations, [[ meas ]], axis=0)
-            else:
-                # update with replacement
-                observations = np.append(observations[1:], [[ meas ]], axis=0)
+            while not rospy.is_shutdown():
+                # keep track of time
+                start_time = rospy.get_time()
 
-            # Generate a prediction
-            mu, sigma = predict_distribution(observations,10)
+                # Get latest measurments
+                meas = get_latest_meas(x,y)
+                x += meas[0]    # update the latest positions
+                y += meas[1]
 
-            # Update the plot
-            plt.scatter(x,y,color='red')  # ground truth for the last step
-            deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 50).T  # get a bunch of sample predictions
-            plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
+                # Update the observation buffer
+                if len(observations) < buffer_length:
+                    # simply add to the buffer
+                    observations = np.append(observations, [[ meas ]], axis=0)
+                else:
+                    # update with replacement
+                    observations = np.append(observations[1:], [[ meas ]], axis=0)
 
-            plt.pause(0.0000001)   # updates real-time plot
+                # Generate a prediction
+                predictions = []
+                for i in range(num_samples):
+                    # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
+                    all_pred = sess.run(predicted_outputs, { inputs: observations })
+                    # We're really only interested in the last prediction: the one for the next step
+                    next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
+                    predictions.append(next_pred)
+                predictions = np.asarray(predictions)  # convert to np array
 
-            # Wait until tao seconds have elapsed
-            while (rospy.get_time() < (start_time + tao)):
-                pass
+                # use sample mean and covariance, which are MLE assuming i.i.d. samples
+                # from a Gaussian distribution
+                mu = np.mean(predictions, axis=0)
+                sigma = np.cov(predictions.T)
 
-        plt.show()
+                # Update the plot - note that this takes a long time when there are too many points!
+                deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 100).T  # get a bunch of sample predictions
+                plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
+                plt.scatter(x,y,color='red')  # ground truth for the last step
+
+                plt.pause(0.0000001)   # updates real-time plot
+
+                # Wait until tao seconds have elapsed
+                have_time = False
+                while (rospy.get_time() < (start_time + tao)):
+                    have_time = True
+                if not have_time:
+                    # clear axes when we have so many points that it's slowing things down too much
+                    plt.cla()  
+
+            plt.show()
             
     except rospy.ROSInterruptException:
         pass

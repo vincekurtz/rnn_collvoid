@@ -258,7 +258,6 @@ def funnel_test_two():
         # Update the observations
         next_pred = mu  #np.random.multivariate_normal(mu, sigma, 1).flatten()
         observations = np.append(observations[1:], [[ next_pred ]], axis=0)
-        print(observations.shape)
         
         # Add to the plot
         deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution

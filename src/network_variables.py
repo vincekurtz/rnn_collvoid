@@ -13,7 +13,7 @@ import numpy as np
 INPUT_SIZE = 4   # current 2D velocities and last change in position
 OUTPUT_SIZE = 4   # Next 2D velocities 2D change in position
 RNN_HIDDEN = 256
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.001
 
 inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
 outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
@@ -28,7 +28,7 @@ cell = tf.nn.rnn_cell.DropoutWrapper(
 	input_keep_prob=0.8,
 	output_keep_prob=0.8,
 	state_keep_prob=0.8,
-	variational_recurrent=False,
+	variational_recurrent=True,
 	input_size=INPUT_SIZE,
 	dtype=tf.float32,
 	seed=None

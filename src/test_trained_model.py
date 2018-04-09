@@ -124,7 +124,6 @@ def get_predictions(observations, num_pred):
         a list of num_pred updated observation sequences 
     """
     outputs = []
-    new_observations = []
 
     with tf.Session() as sess:
         # Initialize global variables
@@ -140,14 +139,9 @@ def get_predictions(observations, num_pred):
             # We're really only interested in the last prediction: the one for the next step
             next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
             
-            # Update velocities for the next time step
-            next_obs = np.append(observations[1:], [[ next_pred[2:] ]], axis=0)
-
             outputs.append(next_pred)
-            new_observations.append(next_obs)
 
-    outputs = np.asarray(outputs)
-    return (outputs, new_observations)
+    return np.asarray(outputs)
 
 
 def funnel_test():
@@ -234,12 +228,14 @@ def funnel_test_two():
     
     test_set_file = "%s/data/test_data.csv" % base_dir 
     
-    num_samples = 10  # number of samples to use to estimate the underlying distribution
-    num_steps = 50   # number of steps to go into the future
+    num_samples = 20  # number of samples to use to estimate the underlying distribution
+    num_steps = 30   # number of steps to go into the future
     
     # Load initial observations
     test_set = DataContainer(test_set_file)
-    observations, _ = test_set.get_next_batch(num_steps=100, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+    obs, _ = test_set.get_next_batch(num_steps=50, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+
+    observations = obs  # make copies 
 
     # Matplotlib setup to change colors as we move along the trajectory
     color_map = cmx.ScalarMappable(
@@ -247,31 +243,31 @@ def funnel_test_two():
             cmap = plt.get_cmap('jet')
             )
 
-    num_dots = 1000  # number of dots to draw for each gaussian
     x = 0
     y = 0
     for i in range(num_steps):
+        print("Predicting step %s of %s" % (i+1, num_steps))
+            
         # Get sample predictions
-        pred, new_obs = get_predictions(observations, num_samples)
+        predictions = get_predictions(observations, num_samples)
 
         # Estimate the underlying distribution
-        mu = np.mean(pred, axis=0)   # sample mean
-        sigma = np.cov(pred.T)       # sample covariance
+        mu = np.mean(predictions, axis=0)   # sample mean
+        sigma = np.cov(predictions.T)       # sample covariance
 
         # Update the observations
-        next_pred = mu   # choose the mean as the basis of continued observations
-        observations = np.append(observations[1:], [[ next_pred[2:] ]], axis=0)
+        next_pred = mu  #np.random.multivariate_normal(mu, sigma, 1).flatten()
+        observations = np.append(observations[1:], [[ next_pred ]], axis=0)
         
         # Add to the plot
-        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, num_dots).T   # get a bunch of samples from this distribution
+        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution
         point_color = color_map.to_rgba(i)
         plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
 
         x += mu[0]  # update list of best predictions for plotting
         y += mu[1]
-
-        #plt.plot(px, py, 'b.')
-        
+    
+    print("Done! ... plotting ...")
     plt.show()
 
 

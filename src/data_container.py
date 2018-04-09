@@ -53,7 +53,10 @@ class DataContainer:
                     raw_data.append(row)
 
         # Create a input/output lists
-        for i in range(len(raw_data)-1):   # traverse in order, only up to N-1
+        for i in range(1, len(raw_data)-1):   # traverse in order, from 1 to N-1
+            xl = float(raw_data[i-1][0])  # last positions
+            yl = float(raw_data[i-1][1])
+
             x0 = float(raw_data[i][0])
             y0 = float(raw_data[i][1])
             xdot0 = float(raw_data[i][2])
@@ -64,7 +67,7 @@ class DataContainer:
             xdot1 = float(raw_data[i+1][2])
             ydot1 = float(raw_data[i+1][3])
 
-            myinput.append([xdot0, ydot0])
+            myinput.append([x0-xl, y0-yl, xdot0, ydot0])
             myoutput.append([x1-x0, y1-y0, xdot1, ydot1])
 
         # Convert to np arrays and store
@@ -97,8 +100,8 @@ class DataContainer:
         y (output): np.array
             Subsequent change in position and subsequent velocity
         """
-        x = np.empty((num_steps, batch_size, 2))
-        y = np.empty((num_steps, batch_size, 4))
+        x = np.zeros((num_steps, batch_size, 4))
+        y = np.zeros((num_steps, batch_size, 4))
 
         # Determine which dataset to use
         if dataset == "Train":
@@ -118,29 +121,35 @@ class DataContainer:
             raise AssertionError("Not enough data! You asked for %s new data points, but I only have %s left" % (batch_size*num_steps, len(input_data)-index))
 
         for i in range(batch_size):
-            xdot0 = input_data[index:index+num_steps][:,0]
-            ydot0 = input_data[index:index+num_steps][:,1]
+            deltax0 = input_data[index:index+num_steps][:,0]
+            deltay0 = input_data[index:index+num_steps][:,1]
+            xdot0 = input_data[index:index+num_steps][:,2]
+            ydot0 = input_data[index:index+num_steps][:,3]
 
             deltax = output_data[index:index+num_steps][:,0]
             deltay = output_data[index:index+num_steps][:,1]
-            xdot1 = input_data[index:index+num_steps][:,0]
-            ydot1 = input_data[index:index+num_steps][:,1]
+            xdot1 = output_data[index:index+num_steps][:,2]
+            ydot1 = output_data[index:index+num_steps][:,3]
 
             if add_noise:
                 # add a bit of Gaussian noise to the input and output
                 sigma_position = 0.01
                 sigma_velocity = 0.01
 
-                x[:, i, 0] = xdot0 + np.random.normal(0,sigma_velocity, num_steps)
-                x[:, i, 1] = ydot0 + np.random.normal(0,sigma_velocity, num_steps)
+                x[:, i, 0] = deltax0 + np.random.normal(0,sigma_position, num_steps)
+                x[:, i, 1] = deltay0 + np.random.normal(0,sigma_position, num_steps)
+                x[:, i, 2] = xdot0 + np.random.normal(0,sigma_velocity, num_steps)
+                x[:, i, 3] = ydot0 + np.random.normal(0,sigma_velocity, num_steps)
 
-                y[:, i, 0] = deltax + np.random.normal(0,sigma_position, num_steps)
-                y[:, i, 1] = deltay + np.random.normal(0,sigma_position, num_steps)
-                y[:, i, 2] = xdot1 + np.random.normal(0,sigma_velocity, num_steps)
-                y[:, i, 3] = ydot1 + np.random.normal(0,sigma_velocity, num_steps)
+                y[:, i, 0] = deltax# + np.random.normal(0,sigma_position, num_steps)
+                y[:, i, 1] = deltay# + np.random.normal(0,sigma_position, num_steps)
+                y[:, i, 2] = xdot1# + np.random.normal(0,sigma_velocity, num_steps)
+                y[:, i, 3] = ydot1# + np.random.normal(0,sigma_velocity, num_steps)
             else:
-                x[:, i, 0] = xdot0
-                x[:, i, 1] = ydot0
+                x[:, i, 0] = deltax0
+                x[:, i, 1] = deltay0
+                x[:, i, 2] = xdot0
+                x[:, i, 3] = ydot0
 
                 y[:, i, 0] = deltax
                 y[:, i, 1] = deltay

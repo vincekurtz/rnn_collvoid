@@ -10,7 +10,7 @@ import numpy as np
 
 # Define all global variables that make up our network structure
 
-INPUT_SIZE = 2   # current 2D velocities
+INPUT_SIZE = 4   # current 2D velocities and last change in position
 OUTPUT_SIZE = 4   # Next 2D velocities 2D change in position
 RNN_HIDDEN = 256
 LEARNING_RATE = 0.01
@@ -46,7 +46,8 @@ final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE
 predicted_outputs = tf.map_fn(final_projection, rnn_outputs)
 
 # Compute the error that we want to minimize
-error = tf.losses.huber_loss(outputs, predicted_outputs)
+#error = tf.losses.huber_loss(outputs, predicted_outputs)
+error = tf.losses.absolute_difference(outputs, predicted_outputs)
 
 # Optimization
 train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(error)

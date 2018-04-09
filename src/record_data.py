@@ -25,7 +25,6 @@ def odom_callback(data):
     """
     global velocity_data
     global position_data
-    global orientation_data
 
     velocity_data = data.twist.twist.linear
     position_data = data.pose.pose.position

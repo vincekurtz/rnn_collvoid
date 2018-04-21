@@ -104,7 +104,9 @@ class DynamicVerificationMC:
         self.node_list.append(root)
 
         # create all other nodes
-        for parent_idx in range( (self.num_branches**self.num_layers-1)/(self.num_branches-1) ):
+        num_parents = (self.num_branches**self.num_layers-1)/(self.num_branches-1)
+        for parent_idx in range(num_parents):
+            print("==> Parent %s of %s" % (parent_idx,num_parents))
             
             parent = self.get_node(parent_idx)
             children_idx = [i[1] for i in g.get_edgelist() if i[0] == parent_idx]
@@ -124,11 +126,9 @@ class DynamicVerificationMC:
            
             # make a second pass to define the robot's motion
             for j in range(len(children_idx)):
-                #c.set_robot_position(probabilistic_threshold_controller, robot_desired_direction)   
-                c.set_robot_position(ignorant_controller, robot_desired_direction)   
-                print(c.obstacle_position, c.robot_position)
+                c.set_robot_position(probabilistic_threshold_controller, robot_desired_direction)   
+                #c.set_robot_position(ignorant_controller, robot_desired_direction)   
                 c.set_label()
-                print(c.label)
 
 
     def __str__(self):
@@ -150,6 +150,31 @@ class DynamicVerificationMC:
         print("Warning: No such node %s found!" % idx)
         return None
 
+    def save_prism_model(self, filename):
+        print("Saving model to %s " % filename)
+
+        mc_string =  "dtmc\n\nmodule dynamic_obstacle_model\n\n"  # string that describes all nodes and edges in the graph
+
+        mc_string += "\n    s : [0..%d] init 0;\n" % (self.num_nodes-1)   # states
+        mc_string += "    c : [0..1] init 0;\n\n"                    # labels
+
+        # Traverse the whole model, getting information about each transition
+        for parent_idx in range( (self.num_branches**self.num_layers-1)/(self.num_branches-1) ):
+
+            parent = self.get_node(parent_idx)
+
+            mc_string += "    [] s=%d -> " % parent.index
+            for i in range(len(parent.children)-1):
+                child = parent.children[i]
+                # update the line for the first children
+                mc_string += "%f : (s'=%d) & (c'=%d) + " % (parent.transition_probs[i], child.index, child.label)
+            # update for the last child, which ends the line
+            mc_string += "%f : (s'=%d) & (c'=%d);\n" % (parent.transition_probs[-1], parent.children[-1].index, parent.children[-1].label)
+
+        mc_string += "\n\nendmodule\n"
+
+        with open(filename, "wb") as out:
+            out.write(mc_string)
 
 
 class DynamicVerificationNode:
@@ -213,6 +238,8 @@ class DynamicVerificationNode:
         """
         Given a trained tensorflow model (sess), set transition probabilities for each
         child node.
+
+        TODO: fix problem with occasional NAN values
         """
         assert( len(self.children) == 4 )
         assert( self.observations.size )   # observations must be non-empty
@@ -276,7 +303,6 @@ class DynamicVerificationNode:
 
         dist = distance.euclidean(self.robot_position, self.obstacle_position)
 
-        print(dist)
         if dist < collision_radius:
             self.label = 1
         else:
@@ -290,5 +316,5 @@ if __name__=="__main__":
         saver = tf.train.Saver()
         saver.restore(sess, "/home/vjkurtz/catkin_ws/src/rnn_collvoid/tmp/LSTM_saved_model")
 
-        a = DynamicVerificationMC(4,sess)
-        mynode = a.get_node(3)
+        a = DynamicVerificationMC(6,sess)
+        a.save_prism_model("test.pm")

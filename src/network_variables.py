@@ -13,7 +13,7 @@ import numpy as np
 INPUT_SIZE = 4   # current 2D velocities and last change in position
 OUTPUT_SIZE = 4   # Next 2D velocities 2D change in position
 RNN_HIDDEN = 256
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.003
 
 inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
 outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))

@@ -2,12 +2,13 @@ resolution 0.02 # set the resolution of the underlying raytrace model in meters
 interval_sim 50 # simulation timestep in milliseconds
 #interval_real 100
 
-speedup 0.2   # playback speed
+speedup 1.0   # playback speed
 
 window
 ( 
   size [ 800.000 600.000 ] 
-  scale 28.806 
+#scale 28.806 
+  scale 80
 )
 
 define map model
@@ -26,9 +27,10 @@ define map model
 map
 (
   name "swarmlab_map"
-  size [10.9  17.75 0.5]
+#size [10.9  17.75 0.5]
   pose [0 0 0 0]
-  bitmap "swarmlab_map.pgm"
+  size [0 0 0]
+#bitmap "swarmlab_map.pgm"
 )
 
 
@@ -121,5 +123,7 @@ define obst model
 #obst( pose [ 0.0 0.0 0 45.000000 ] name "block" color "black")
 
 # robots added here automatically
-omni_robot( pose [ -6.7 0 0 0 ] name "robot_0" color "red")
-omni_robot( pose [ -6.7 2 0 0 ] name "robot_1" color "black")
+#omni_robot( pose [ -6.7 0 0 0 ] name "robot_0" color "red")
+#omni_robot( pose [ -6.7 2 0 0 ] name "robot_1" color "black")
+omni_robot( pose [ 0 1 0 0 ] name "robot_0" color "red")
+omni_robot( pose [ 0 5 0 0 ] name "robot_1" color "black")

@@ -192,7 +192,7 @@ def funnel_test():
                 y += next_pred[1]
 
                 # Update velocities for the next time step
-                observations = np.append(observations[1:], [[ next_pred[2:] ]], axis=0)
+                observations = np.append(observations[1:], [[ next_pred ]], axis=0)
                 
                 # add to the plot
                 point_color = color_map.to_rgba(i)
@@ -228,8 +228,8 @@ def funnel_test_two():
     
     test_set_file = "%s/data/test_data.csv" % base_dir 
     
-    num_samples = 20  # number of samples to use to estimate the underlying distribution
-    num_steps = 30   # number of steps to go into the future
+    num_samples = 10  # number of samples to use to estimate the underlying distribution
+    num_steps = 15   # number of steps to go into the future
     
     # Load initial observations
     test_set = DataContainer(test_set_file)
@@ -299,6 +299,6 @@ def simple_test():
         plot_comparison(predicts, otpt)
 
 if __name__=="__main__":
-    #simple_test()
+    simple_test()
     #funnel_test()
-    funnel_test_two()
+    #funnel_test_two()

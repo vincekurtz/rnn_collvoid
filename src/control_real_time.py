@@ -136,7 +136,6 @@ def control_robot_2(mu, sigma, v_desired, publisher):
     if not res.success:
         print("Unable to find optimal solution!")
         print(res)
-    print(best_x, performance_cost(best_x), coll_prob(best_x))
 
     # translate position into a command velocity
     cmd_vel = Twist()
@@ -243,7 +242,7 @@ def main():
             mu, sigma = predict_distribution(observations, num_samples, sess)
 
             # Control the robot
-            des_vel.linear.y = -1
+            des_vel.linear.y = -0.7
             control_robot_2(mu, sigma, des_vel, controller)
 
             rospy.sleep(tao)

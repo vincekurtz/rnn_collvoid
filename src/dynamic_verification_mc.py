@@ -114,7 +114,7 @@ class DynamicVerificationMC:
             # make a first pass to describe the obstacle's motion
             for j in range(len(children_idx)):
                 direction = j   # 0 = NE, 1 = NW, 2 = SW, 3 = SE
-                
+               
                 c = DynamicVerificationNode(children_idx[j], parent, direction)
                 c.set_observations()
                 c.set_obstacle_position(obstacle_initial_position)
@@ -316,5 +316,5 @@ if __name__=="__main__":
         saver = tf.train.Saver()
         saver.restore(sess, "/home/vjkurtz/catkin_ws/src/rnn_collvoid/tmp/LSTM_saved_model")
 
-        a = DynamicVerificationMC(6,sess)
+        a = DynamicVerificationMC(2,sess)
         a.save_prism_model("test.pm")

@@ -228,7 +228,7 @@ def funnel_test_two():
     
     test_set_file = "%s/data/test_data.csv" % base_dir 
     
-    num_samples = 10  # number of samples to use to estimate the underlying distribution
+    num_samples = 50  # number of samples to use to estimate the underlying distribution
     num_steps = 15   # number of steps to go into the future
     
     # Load initial observations
@@ -299,6 +299,6 @@ def simple_test():
         plot_comparison(predicts, otpt)
 
 if __name__=="__main__":
-    simple_test()
+    #simple_test()
     #funnel_test()
-    #funnel_test_two()
+    funnel_test_two()

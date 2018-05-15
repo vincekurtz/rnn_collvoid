@@ -28,16 +28,25 @@ try:
     cmd_vel.linear.y = -0.1
 
     while not rospy.is_shutdown():
-        for i in range(duration*hz):
-            # Move forward...
-            cmd_vel.linear.x = speed
+        for j in range(10):
+            print("hello")
+            for i in range(duration*hz):
+                # Move forward...
+                cmd_vel.linear.x = speed
+                controller.publish(cmd_vel)
+                rate.sleep()
+            for i in range(duration*hz):
+                # ... and back
+                cmd_vel.linear.x = -speed
+                controller.publish(cmd_vel)
+                rate.sleep()
+        print("switch")
+        for k in range(50):
+            cmd_vel.linear.x = -0.5
+            cmd_vel.linear.y = -2.5
             controller.publish(cmd_vel)
             rate.sleep()
-        for i in range(duration*hz):
-            # ... and back
-            cmd_vel.linear.x = -speed
-            controller.publish(cmd_vel)
-            rate.sleep()
+        cmd_vel.linear.y = -0.1
 
 except rospy.ROSInterruptException:
     # Quit gracefully with ^C

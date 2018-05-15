@@ -22,7 +22,7 @@ def train(datafile, plot_test=True):
     Assues that global network variables (as in network_variables.py) are defined
     """
 
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 100
     ITERATIONS_PER_EPOCH = 10
     NUM_STEPS = 100
     BATCH_SIZE = 3

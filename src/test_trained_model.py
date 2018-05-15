@@ -121,7 +121,6 @@ def get_predictions(observations, num_pred):
 
     Returns:
         a (num_pred x output_size) np array of outputs
-        a list of num_pred updated observation sequences 
     """
     outputs = []
 
@@ -222,7 +221,7 @@ def funnel_test_two():
     """
     Based on an initial observation, propagate an estimate of position forward
     in time. Do this by generating several predictions, estimating an underlying
-    distribution, sampling from this distribution (or taking MLE/MMSE/mean?), and using that sample to start
+    distribution, and using the mean of the distriubtion to start
     the process over again.
     """
     
@@ -270,6 +269,68 @@ def funnel_test_two():
     print("Done! ... plotting ...")
     plt.show()
 
+def funnel_test_three():
+    """
+    Based on an initial observation, propagate an estimate of position forward
+    in time. Do this by generating several predictions, estimating an underlying
+    distribution, sampling from this distribution, and using those samples to start
+    the process over again.
+    """
+    
+    test_set_file = "%s/data/test_data.csv" % base_dir 
+    
+    num_samples = 10  # number of samples to use to estimate the underlying distribution
+    num_branches = 10  # number of different possible observations to use to estimate future behavior
+    num_steps = 15   # number of steps to go into the future
+    
+    # Load initial observations
+    test_set = DataContainer(test_set_file)
+    observations, _ = test_set.get_next_batch(num_steps=50, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+
+    # Matplotlib setup to change colors as we move along the trajectory
+    color_map = cmx.ScalarMappable(
+            norm = colors.Normalize(vmin=0, vmax=num_steps),
+            cmap = plt.get_cmap('jet')
+            )
+
+    x = 0
+    y = 0
+
+    # Get sample predictions
+    predictions = get_predictions(observations, num_samples)
+    print(predictions.shape)
+    
+    for i in range(num_steps):
+        print("Predicting step %s of %s" % (i+1, num_steps))
+            
+        # Estimate the underlying distribution
+        mu = np.mean(predictions, axis=0)   # sample mean
+        sigma = np.cov(predictions.T)       # sample covariance
+
+        # Add to the plot
+        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution
+        point_color = color_map.to_rgba(i)
+        plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
+
+        x += mu[0]  # update list of best predictions for plotting
+        y += mu[1]
+
+        # Get predictions for the next step
+        predictions = None
+        for j in range(num_branches):
+            sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
+            obs = np.append(observations[1:], [[ sample_point ]], axis=0)
+            if j == 0:
+                predictions = get_predictions(obs, num_samples/num_branches)
+            else:
+                predictions = np.vstack((predictions, get_predictions(obs, num_samples/num_branches)))
+       
+        print(predictions.shape)
+        
+    
+    print("Done! ... plotting ...")
+    plt.show()
+
 
 def simple_test():
     """
@@ -301,4 +362,4 @@ def simple_test():
 if __name__=="__main__":
     #simple_test()
     #funnel_test()
-    funnel_test_two()
+    funnel_test_three()

@@ -107,8 +107,8 @@ def control_robot_2(mu, sigma, v_desired, publisher):
     """
     
     dt = 0.1  # TODO cleanup
-    obs_radius = 0.25
-    my_radius = 0.25
+    obs_radius = 0.125
+    my_radius = 0.125
 
     # Calculate desired position TODO: take orientation into account
     xdes = [my_position_data.x + (v_desired.linear.x * dt), my_position_data.y + (v_desired.linear.y * dt)]
@@ -130,7 +130,7 @@ def control_robot_2(mu, sigma, v_desired, publisher):
     # Calculate an optimal next position
     theta = 0.1   # maximum allowable probibility of collision
     cons = ({'type': 'ineq', 'fun': lambda x : theta - coll_prob(x)})
-    res = minimize(performance_cost, xdes, constraints=cons, options={"maxiter": 900}, method="COBYLA")
+    res = minimize(performance_cost, xdes, constraints=cons, options={"maxiter": 2000}, method="COBYLA")
     best_x = res.x
 
     if not res.success:

@@ -34,7 +34,7 @@ def train(datafile, plot_test=True):
 
         for epoch in range(NUM_EPOCHS):
             epoch_error = 0
-            mydata.reset()   # retrain on the same data just for now, for testing purposes
+            mydata.reset()
             for _ in range(ITERATIONS_PER_EPOCH):
                 # Get training data for the next batch
                 x, y = mydata.get_next_batch(NUM_STEPS, BATCH_SIZE, add_noise=True)

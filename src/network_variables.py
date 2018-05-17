@@ -12,7 +12,7 @@ import numpy as np
 
 INPUT_SIZE = 4   # current 2D velocities and last change in position
 OUTPUT_SIZE = 4   # Next 2D velocities 2D change in position
-RNN_HIDDEN = 256
+RNN_HIDDEN = 128
 LEARNING_RATE = 0.003
 
 inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
@@ -25,9 +25,9 @@ cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
 # Add dropout
 cell = tf.nn.rnn_cell.DropoutWrapper(
 	cell,
-	input_keep_prob=0.9,
-	output_keep_prob=0.9,
-	state_keep_prob=0.9,
+	input_keep_prob=0.8,
+	output_keep_prob=0.8,
+	state_keep_prob=0.8,
 	variational_recurrent=True,
 	input_size=INPUT_SIZE,
 	dtype=tf.float32,

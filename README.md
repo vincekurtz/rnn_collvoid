@@ -22,5 +22,5 @@ Perform more extensive tests on a trained model with `src/test_trained_model.py`
 
 Test out a controller based on a trained model with `test_controller.launch`
 
-
+See real-time predictions with `test_predictions.launch`
 

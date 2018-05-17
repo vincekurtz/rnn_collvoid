@@ -115,7 +115,7 @@ def plot_comparison(predicted_trajectories, actual_trajectory):
 
     plt.show()
 
-def get_predictions(observations, num_pred):
+def get_predictions(observations, num_pred, sess):
     """
     Given a sequence of observations, use dropout to generate num_pred unique outputs
 
@@ -124,21 +124,20 @@ def get_predictions(observations, num_pred):
     """
     outputs = []
 
-    with tf.Session() as sess:
-        # Initialize global variables
-        sess.run(tf.global_variables_initializer())
+    # Initialize global variables
+    sess.run(tf.global_variables_initializer())
 
-        # Load saved session
-        saver = tf.train.Saver()
-        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
+    # Load saved session
+    saver = tf.train.Saver()
+    saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
 
-        for i in range(num_pred):
-            # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
-            all_pred = sess.run(predicted_outputs, { inputs: observations })
-            # We're really only interested in the last prediction: the one for the next step
-            next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
-            
-            outputs.append(next_pred)
+    for i in range(num_pred):
+        # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
+        all_pred = sess.run(predicted_outputs, { inputs: observations })
+        # We're really only interested in the last prediction: the one for the next step
+        next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
+        
+        outputs.append(next_pred)
 
     return np.asarray(outputs)
 
@@ -225,46 +224,54 @@ def funnel_test_two():
     the process over again.
     """
     
-    test_set_file = "%s/data/test_data.csv" % base_dir 
-    
-    num_samples = 50  # number of samples to use to estimate the underlying distribution
-    num_steps = 15   # number of steps to go into the future
-    
-    # Load initial observations
-    test_set = DataContainer(test_set_file)
-    obs, _ = test_set.get_next_batch(num_steps=50, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+    with tf.Session() as sess:
+        # Initialize global variables
+        sess.run(tf.global_variables_initializer())
 
-    observations = obs  # make copies 
+        # Load saved session
+        saver = tf.train.Saver()
+        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
 
-    # Matplotlib setup to change colors as we move along the trajectory
-    color_map = cmx.ScalarMappable(
-            norm = colors.Normalize(vmin=0, vmax=num_steps),
-            cmap = plt.get_cmap('jet')
-            )
-
-    x = 0
-    y = 0
-    for i in range(num_steps):
-        print("Predicting step %s of %s" % (i+1, num_steps))
-            
-        # Get sample predictions
-        predictions = get_predictions(observations, num_samples)
-
-        # Estimate the underlying distribution
-        mu = np.mean(predictions, axis=0)   # sample mean
-        sigma = np.cov(predictions.T)       # sample covariance
-
-        # Update the observations
-        next_pred = mu  #np.random.multivariate_normal(mu, sigma, 1).flatten()
-        observations = np.append(observations[1:], [[ next_pred ]], axis=0)
+        test_set_file = "%s/data/test_data.csv" % base_dir 
         
-        # Add to the plot
-        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution
-        point_color = color_map.to_rgba(i)
-        plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
+        num_samples = 50  # number of samples to use to estimate the underlying distribution
+        num_steps = 15   # number of steps to go into the future
+        
+        # Load initial observations
+        test_set = DataContainer(test_set_file)
+        obs, _ = test_set.get_next_batch(num_steps=50, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
 
-        x += mu[0]  # update list of best predictions for plotting
-        y += mu[1]
+        observations = obs  # make copies 
+
+        # Matplotlib setup to change colors as we move along the trajectory
+        color_map = cmx.ScalarMappable(
+                norm = colors.Normalize(vmin=0, vmax=num_steps),
+                cmap = plt.get_cmap('jet')
+                )
+
+        x = 0
+        y = 0
+        for i in range(num_steps):
+            print("Predicting step %s of %s" % (i+1, num_steps))
+                
+            # Get sample predictions
+            predictions = get_predictions(observations, num_samples, sess)
+
+            # Estimate the underlying distribution
+            mu = np.mean(predictions, axis=0)   # sample mean
+            sigma = np.cov(predictions.T)       # sample covariance
+
+            # Update the observations
+            next_pred = mu  #np.random.multivariate_normal(mu, sigma, 1).flatten()
+            observations = np.append(observations[1:], [[ next_pred ]], axis=0)
+            
+            # Add to the plot
+            deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution
+            point_color = color_map.to_rgba(i)
+            plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
+
+            x += mu[0]  # update list of best predictions for plotting
+            y += mu[1]
     
     print("Done! ... plotting ...")
     plt.show()
@@ -277,56 +284,61 @@ def funnel_test_three():
     the process over again.
     """
     
-    test_set_file = "%s/data/test_data.csv" % base_dir 
-    
-    num_samples = 10  # number of samples to use to estimate the underlying distribution
-    num_branches = 10  # number of different possible observations to use to estimate future behavior
-    num_steps = 15   # number of steps to go into the future
-    
-    # Load initial observations
-    test_set = DataContainer(test_set_file)
-    observations, _ = test_set.get_next_batch(num_steps=50, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+    with tf.Session() as sess:
+        # Initialize global variables
+        sess.run(tf.global_variables_initializer())
 
-    # Matplotlib setup to change colors as we move along the trajectory
-    color_map = cmx.ScalarMappable(
-            norm = colors.Normalize(vmin=0, vmax=num_steps),
-            cmap = plt.get_cmap('jet')
-            )
+        # Load saved session
+        saver = tf.train.Saver()
+        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
 
-    x = 0
-    y = 0
-
-    # Get sample predictions
-    predictions = get_predictions(observations, num_samples)
-    print(predictions.shape)
-    
-    for i in range(num_steps):
-        print("Predicting step %s of %s" % (i+1, num_steps))
-            
-        # Estimate the underlying distribution
-        mu = np.mean(predictions, axis=0)   # sample mean
-        sigma = np.cov(predictions.T)       # sample covariance
-
-        # Add to the plot
-        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution
-        point_color = color_map.to_rgba(i)
-        plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
-
-        x += mu[0]  # update list of best predictions for plotting
-        y += mu[1]
-
-        # Get predictions for the next step
-        predictions = None
-        for j in range(num_branches):
-            sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
-            obs = np.append(observations[1:], [[ sample_point ]], axis=0)
-            if j == 0:
-                predictions = get_predictions(obs, num_samples/num_branches)
-            else:
-                predictions = np.vstack((predictions, get_predictions(obs, num_samples/num_branches)))
-       
-        print(predictions.shape)
+        test_set_file = "%s/data/test_data.csv" % base_dir 
         
+        num_samples = 10  # number of samples to use to estimate the underlying distribution
+        num_branches = 10  # number of different possible observations to use to estimate future behavior
+        num_steps = 15   # number of steps to go into the future
+        
+        # Load initial observations
+        test_set = DataContainer(test_set_file)
+        observations, _ = test_set.get_next_batch(num_steps=50, batch_size=1, dataset="Test")  # we'll ingore the actual output data in this case
+
+        # Matplotlib setup to change colors as we move along the trajectory
+        color_map = cmx.ScalarMappable(
+                norm = colors.Normalize(vmin=0, vmax=num_steps),
+                cmap = plt.get_cmap('jet')
+                )
+
+        x = 0
+        y = 0
+
+        # Get sample predictions
+        predictions = get_predictions(observations, num_samples, sess)
+        
+        for i in range(num_steps):
+            print("Predicting step %s of %s" % (i+1, num_steps))
+                
+            # Estimate the underlying distribution
+            mu = np.mean(predictions, axis=0)   # sample mean
+            sigma = np.cov(predictions.T)       # sample covariance
+
+            # Add to the plot
+            deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 1000).T   # get a bunch of samples from this distribution
+            point_color = color_map.to_rgba(i)
+            plt.scatter(x + deltax, y + deltay, color=point_color, alpha=0.2, edgecolors="none")
+
+            x += mu[0]  # update list of best predictions for plotting
+            y += mu[1]
+
+            # Get predictions for the next step
+            predictions = None
+            for j in range(num_branches):
+                sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
+                obs = np.append(observations[1:], [[ sample_point ]], axis=0)
+                if j == 0:
+                    predictions = get_predictions(obs, num_samples/num_branches, sess)
+                else:
+                    predictions = np.vstack((predictions, get_predictions(obs, num_samples/num_branches, sess)))
+           
     
     print("Done! ... plotting ...")
     plt.show()
@@ -361,5 +373,5 @@ def simple_test():
 
 if __name__=="__main__":
     #simple_test()
-    #funnel_test()
-    funnel_test_three()
+    funnel_test_two()
+    #funnel_test_three()

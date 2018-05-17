@@ -158,7 +158,7 @@ def main():
     buffer_length = 5000   # max number of observations to predict based on
 
     num_samples = 10     # number of passes used to approximate the distribution of predicted next positions
-    num_steps = 5        # number of steps into the future to predict
+    num_steps = 2        # number of steps into the future to predict
     try:
         rospy.init_node('rnn_observer')
         odometer = rospy.Subscriber("/robot_0/base_pose_ground_truth", Odometry, odom_callback)

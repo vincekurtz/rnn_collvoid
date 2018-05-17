@@ -24,31 +24,23 @@ base_dir = "/home/vjkurtz/catkin_ws/src/rnn_collvoid"
 velocity_data = Odometry().twist.twist.linear  # linear x,y,z velocities
 position_data = Odometry().pose.pose.position  # x,y,z position
 
-def get_predictions(observations, num_pred):
+def get_predictions(observations, num_samples, sess):
     """
-    Given a sequence of observations, use dropout to generate num_pred unique outputs
+    Given a sequence of observations, use dropout to generate samples from a predicted
+    future distribution
 
     Returns:
-        a (num_pred x output_size) np array of outputs
-        a list of num_pred updated observation sequences 
+        a (num_samples x output_size) np array of outputs
     """
     outputs = []
 
-    with tf.Session() as sess:
-        # Initialize global variables
-        sess.run(tf.global_variables_initializer())
-
-        # Load saved session
-        saver = tf.train.Saver()
-        saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
-
-        for i in range(num_pred):
-            # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
-            all_pred = sess.run(predicted_outputs, { inputs: observations })
-            # We're really only interested in the last prediction: the one for the next step
-            next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
-            
-            outputs.append(next_pred)
+    for i in range(num_samples):
+        # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
+        all_pred = sess.run(predicted_outputs, { inputs: observations })
+        # We're really only interested in the last prediction: the one for the next step
+        next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
+        
+        outputs.append(next_pred)
 
     return np.asarray(outputs)
 
@@ -115,11 +107,58 @@ def get_latest_meas(last_x, last_y):
 
     return np.array([deltax, deltay, xdot, ydot])
 
+def plot_predictions(x, y, observations, sess, num_samples=10, num_steps=3, num_branches=4):
+    """
+    Plot future distributions of likely future positions
+
+    Parameters:
+        x, y         :  current position of the obstacle in cartesian coordinates
+        observations :  past observations of the obstacle (position and velocity)
+        sess         :  a tensorflow session with a trained model loaded
+        num_samples  :  the number of passes through the RNN to use to estimate the distribution of future states
+        num_steps    :  how many timesteps into the future to predict
+        num_branches :  number of samples from the distribution to use to propagate into the future
+    """
+
+    # Get predictions for the first step
+    predictions = get_predictions(observations, num_samples, sess)
+
+
+    for i in range(num_steps):
+
+        # Estimate the underlying distribution (with sample mean and covariance)
+        mu = np.mean(predictions, axis=0)
+        sigma = np.cov(predictions.T)
+
+        # Update the plot - note that this takes a long time when there are too many points!
+        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 100).T  # get a bunch of sample predictions
+        plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
+        # Update x and y for the next step using the mean
+        x += mu[0]
+        y += mu[1]
+
+        # Get predictions for the next step
+        predictions = None
+        for j in range(num_branches):
+            sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
+            new_obs = np.append(observations[1:], [[ sample_point ]], axis=0)
+
+            new_pred = get_predictions(new_obs, num_samples/num_branches, sess)  # num_samples/num_branches keeps the total number of predictions to about num_samples
+            if j == 0:
+                predictions = new_pred   # initialize an np array in the first step
+            else:
+                predictions = np.vstack((predictions, new_pred))
+            
+
+
+
 def main():
 
     tao = 0.1  # time between samples, in seconds
-    buffer_length = 20   # number of observations to predict based on
+    buffer_length = 5000   # max number of observations to predict based on
+
     num_samples = 10     # number of passes used to approximate the distribution of predicted next positions
+    num_steps = 5        # number of steps into the future to predict
     try:
         rospy.init_node('rnn_observer')
         odometer = rospy.Subscriber("/robot_0/base_pose_ground_truth", Odometry, odom_callback)
@@ -137,6 +176,7 @@ def main():
             saver = tf.train.Saver()
             saver.restore(sess, "%s/tmp/LSTM_saved_model" % base_dir)
 
+            i = 0   # keep track of iterations
 
             while not rospy.is_shutdown():
                 # keep track of time
@@ -155,16 +195,13 @@ def main():
                     # update with replacement
                     observations = np.append(observations[1:], [[ meas ]], axis=0)
 
-                # Generate a prediction
-                mu, sigma = predict_distribution(observations, num_samples, sess)
-
-                # Update the plot - note that this takes a long time when there are too many points!
-                deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 100).T  # get a bunch of sample predictions
-                plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
-                plt.scatter(x,y,color='red')  # ground truth for the last step
-
+                plt.scatter(x,y,color='red')  # plot the ground truth for the last step
                 plt.pause(1e-9)   # updates real-time plot
 
+                if (i % num_steps == 0):
+                    plot_predictions(x, y, observations, sess, num_samples=num_samples, num_steps=num_steps)
+                    plt.pause(1e-9)   # updates real-time plot
+                 
                 # Wait until tao seconds have elapsed
                 have_time = False
                 while (rospy.get_time() < (start_time + tao)):
@@ -172,6 +209,8 @@ def main():
                 if not have_time:
                     # clear axes when we have so many points that it's slowing things down too much
                     plt.cla()  
+
+                i += 1
 
             plt.show()
             

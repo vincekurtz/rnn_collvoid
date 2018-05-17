@@ -29,7 +29,6 @@ try:
 
     while not rospy.is_shutdown():
         for j in range(10):
-            print("hello")
             for i in range(duration*hz):
                 # Move forward...
                 cmd_vel.linear.x = speed

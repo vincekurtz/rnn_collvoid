@@ -46,8 +46,8 @@ final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE
 predicted_outputs = tf.map_fn(final_projection, rnn_outputs)
 
 # Compute the error that we want to minimize
-#error = tf.losses.huber_loss(outputs, predicted_outputs)
-error = tf.losses.absolute_difference(outputs, predicted_outputs)
+error = tf.losses.huber_loss(outputs, predicted_outputs)
+#error = tf.losses.absolute_difference(outputs, predicted_outputs)
 
 # Optimization
 train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(error)

@@ -107,7 +107,7 @@ def get_latest_meas(last_x, last_y):
 
     return np.array([deltax, deltay, xdot, ydot])
 
-def plot_predictions(x, y, observations, sess, num_samples=10, num_steps=3, num_branches=4):
+def plot_predictions(x, y, observations, sess, num_samples=50, num_steps=3, num_branches=10):
     """
     Plot future distributions of likely future positions
 
@@ -129,10 +129,15 @@ def plot_predictions(x, y, observations, sess, num_samples=10, num_steps=3, num_
         # Estimate the underlying distribution (with sample mean and covariance)
         mu = np.mean(predictions, axis=0)
         sigma = np.cov(predictions.T)
+        
+        deltax = predictions[:,0]  # use actual output of network
+        deltay = predictions[:,1]
 
         # Update the plot - note that this takes a long time when there are too many points!
-        deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 100).T  # get a bunch of sample predictions
+        #deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 100).T  # get a bunch of sample predictions
         plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
+
+
         # Update x and y for the next step using the mean
         x += mu[0]
         y += mu[1]
@@ -157,8 +162,8 @@ def main():
     tao = 0.1  # time between samples, in seconds
     buffer_length = 5000   # max number of observations to predict based on
 
-    num_samples = 10     # number of passes used to approximate the distribution of predicted next positions
-    num_steps = 5        # number of steps into the future to predict
+    num_samples = 20     # number of passes used to approximate the distribution of predicted next positions
+    num_steps = 3        # number of steps into the future to predict
     try:
         rospy.init_node('rnn_observer')
         odometer = rospy.Subscriber("/robot_0/base_pose_ground_truth", Odometry, odom_callback)

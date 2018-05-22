@@ -15,6 +15,8 @@ import rospy
 from nav_msgs.msg import Odometry
 import threading
 
+import matplotlib.pyplot as plt
+
 TIMESTEP = 0.1   # seconds between samples
 
 # TRAINING DATA: these variables are updated in real time
@@ -67,7 +69,10 @@ def get_io_data(pos_hist):
     return(ipt, opt)
 
 class OnlineLSTMNetwork():
-    def __init__(self):
+    def __init__(self, coord):
+        # The coordinator will tell separate threads when to stop
+        self.coord = coord
+
         # Set up two tensorflow graphs for training and prediction
         self.train_graph = tf.Graph()
         self.pred_graph = tf.Graph()
@@ -101,13 +106,16 @@ class OnlineLSTMNetwork():
                 # Create a basic LSTM cell, there are other options too
                 cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
 
+                var_recurr=test  # if it's the test set, use variational inference style dropout.
+                                 # Otherwise, use normal dropout for regularization
+
                 # Add dropout
                 cell = tf.nn.rnn_cell.DropoutWrapper(
                         cell,
                         input_keep_prob=0.9,
                         output_keep_prob=0.9,
                         state_keep_prob=0.9,
-                        variational_recurrent=False,
+                        variational_recurrent=var_recurr,
                         input_size=INPUT_SIZE,
                         dtype=tf.float32,
                         seed=None
@@ -139,14 +147,14 @@ class OnlineLSTMNetwork():
 
                 return tf.global_variables_initializer(), inputs, outputs, predicted_outputs, error, train_fn, saver
 
-
-    def predict(self, coord):
+    def predict(self):
         """
         Predict the next position of an obstacle based on the latest
         observed history.
 
         Global variable TIMESTEP must be set.
         """
+        t = 0  # keep track of time for plotting
         try:
             rate = rospy.Rate(1.0/TIMESTEP)
 
@@ -156,14 +164,18 @@ class OnlineLSTMNetwork():
             with tf.Session(graph=self.pred_graph) as sess:
                 saver.restore(sess, self.checkpoint_location)
 
-                while not coord.should_stop():
+                while not self.coord.should_stop():
                     correct_output = position_history[-1]
                     X, Y = get_io_data(position_history)
                     pred_output = sess.run(predicted_outputs, { inputs: X })[-1]
 
-                    xerr = float("{0:.4f}".format(correct_output[0,0]-pred_output[0,0]))
-                    yerr = float("{0:.4f}".format(correct_output[0,1]-pred_output[0,1]))
-                    print(xerr, yerr)
+                    xerr = float("{0:.4f}".format(abs(correct_output[0,0]-pred_output[0,0])))
+                    yerr = float("{0:.4f}".format(abs(correct_output[0,1]-pred_output[0,1])))
+
+                    # Dynamically update the plot
+                    plt.scatter(t, yerr, color='red')
+                    plt.scatter(t, xerr, color='blue')
+                    plt.pause(1e-9)
 
                     if self.update_ready:
                         # Update the network parameters every so often
@@ -172,10 +184,12 @@ class OnlineLSTMNetwork():
 
                     rate.sleep()
 
-        except rospy.ROSInterruptException:
-            coord.request_stop()
+                    t += TIMESTEP  # update the time for plotting
 
-    def train(self, coord):
+        except rospy.ROSInterruptException:
+            self.coord.request_stop()
+
+    def train(self):
         """
         Train the network repeatedly, using the given
         number of epochs.
@@ -184,11 +198,11 @@ class OnlineLSTMNetwork():
             NUM_EPOCHS = 100
 
             # Set up our graph
-            init, inputs, outputs, predicted_outputs, error, train_fn, saver = self.build_net(self.train_graph, self.train_device)
+            init, inputs, outputs, predicted_outputs, error, train_fn, saver = self.build_net(self.train_graph, self.train_device, test=True)
 
             with tf.Session(graph=self.train_graph) as sess:
                 sess.run(init)
-                while not coord.should_stop():
+                while not self.coord.should_stop():
                     # Get input/output data from our position history
                     X, Y = get_io_data(position_history)
 
@@ -205,7 +219,7 @@ class OnlineLSTMNetwork():
                     self.update_ready = True   # signal that we're ready to use this new data
 
         except rospy.ROSInterruptException:
-            coord.request_stop()
+            self.coord.request_stop()
 
 if __name__=="__main__":
     coord = tf.train.Coordinator()
@@ -214,9 +228,9 @@ if __name__=="__main__":
         odom = rospy.Subscriber('/robot_0/base_pose_ground_truth', Odometry, odom_callback)
         rospy.sleep(1)  # wait a second for things to initialize
 
-        nn = OnlineLSTMNetwork()
-        train = threading.Thread(target=nn.train, args=(coord,))
-        predict = threading.Thread(target=nn.predict, args=(coord,))
+        nn = OnlineLSTMNetwork(coord)
+        train = threading.Thread(target=nn.train)
+        predict = threading.Thread(target=nn.predict)
 
         train.start()
         predict.start()

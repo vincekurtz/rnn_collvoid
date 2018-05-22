@@ -15,6 +15,7 @@ import rospy
 from nav_msgs.msg import Odometry
 import threading
 
+TIMESTEP = 0.1   # seconds between samples
 
 # TRAINING DATA: these variables are updated in real time
 last_x = None
@@ -66,95 +67,161 @@ def get_io_data(pos_hist):
     return(ipt, opt)
 
 class OnlineLSTMNetwork():
-    def __init__(self, scope):
-        with tf.variable_scope(scope):
-            TIMESTEP = 0.1   # seconds between samples
-            INPUT_SIZE = 2   # last changes 2D change in position
-            OUTPUT_SIZE = 2   # Next 2D change in position
-            RNN_HIDDEN = 100
-            LEARNING_RATE = 0.003
+    def __init__(self):
+        # Set up two tensorflow graphs for training and prediction
+        self.train_graph = tf.Graph()
+        self.pred_graph = tf.Graph()
+        
+        self.train_device = '/cpu:0'
+        self.pred_device = '/cpu:0'
 
-            self.inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
-            self.outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
+        # Specify where to save checkpoints
+        self.checkpoint_location = "/tmp/graph.checkpoint"
 
-            # Create a basic LSTM cell, there are other options too
-            cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
+        # Keep track of when a new update to the model is ready
+        self.update_ready = False
 
-            # Add dropout
-            self.cell = tf.nn.rnn_cell.DropoutWrapper(
-                    cell,
-                    input_keep_prob=0.9,
-                    output_keep_prob=0.9,
-                    state_keep_prob=0.9,
-                    variational_recurrent=False,
-                    input_size=INPUT_SIZE,
-                    dtype=tf.float32,
-                    seed=None
-            )
+    def build_net(self, graph, device, test=False):
+        """
+        Create a tensorflow graph that represents our network. Some parameters
+        may change slightly depending whether this is a graph for training or for 
+        testing (for example, whether we use dropout for regularization or variational
+        inference). 
+        """
+        with graph.as_default():
+            with graph.device(device):
+                INPUT_SIZE = 2   # last changes 2D change in position
+                OUTPUT_SIZE = 2   # Next 2D change in position
+                RNN_HIDDEN = 100
+                LEARNING_RATE = 0.003
 
-            # Create initial state as all zeros
-            batch_size = 1  # because online learning
-            self.initial_state = self.cell.zero_state(batch_size, tf.float32)
+                inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
+                outputs = tf.placeholder(tf.float32, (None, None, OUTPUT_SIZE))
 
-            # Given a set of inputs, return a tuple with rnn outputs and rnn state
-            self.rnn_outputs, self.rnn_states = tf.nn.dynamic_rnn(self.cell, self.inputs, initial_state=self.initial_state, time_major=True)
+                # Create a basic LSTM cell, there are other options too
+                cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
 
-            # Project rnn outputs to our OUTPUT_SIZE
-            self.final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE, activation_fn=None)
-            self.predicted_outputs = tf.map_fn(self.final_projection, self.rnn_outputs)
+                # Add dropout
+                cell = tf.nn.rnn_cell.DropoutWrapper(
+                        cell,
+                        input_keep_prob=0.9,
+                        output_keep_prob=0.9,
+                        state_keep_prob=0.9,
+                        variational_recurrent=False,
+                        input_size=INPUT_SIZE,
+                        dtype=tf.float32,
+                        seed=None
+                )
 
-            # Compute the error that we want to minimize
-            self.error = tf.losses.huber_loss(self.outputs, self.predicted_outputs)
-            #error = tf.losses.absolute_difference(outputs, predicted_outputs)
+                # Create initial state as all zeros
+                batch_size = 1  # because online learning
+                initial_state = cell.zero_state(batch_size, tf.float32)
 
-            # Optimization
-            self.train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(self.error)
+                # Given a set of inputs, return a tuple with rnn outputs and rnn state
+                rnn_outputs, rnn_states = tf.nn.dynamic_rnn(cell, inputs, initial_state=initial_state, time_major=True)
 
-            # Accuracy measurment
-            accuracy = tf.reduce_mean(tf.abs(outputs - predicted_outputs))
+                # Project rnn outputs to our OUTPUT_SIZE
+                final_projection = lambda x: tf.contrib.layers.linear(x, num_outputs=OUTPUT_SIZE, activation_fn=None)
+                predicted_outputs = tf.map_fn(final_projection, rnn_outputs)
 
-    def predict(session):
-        rate = rospy.Rate(1.0/TIMESTEP)
-        while not rospy.is_shutdown():
-            correct_output = position_history[-1]
-            X, Y = get_io_data(position_history)
-            pred_output = session.run(predicted_outputs, { inputs: X })[-1]
+                # Compute the error that we want to minimize
+                error = tf.losses.huber_loss(outputs, predicted_outputs)
+                #error = tf.losses.absolute_difference(outputs, predicted_outputs)
 
-            xerr = float("{0:.4f}".format(correct_output[0,0]-pred_output[0,0]))
-            yerr = float("{0:.4f}".format(correct_output[0,1]-pred_output[0,1]))
-            print(xerr, yerr)
+                # Optimization
+                train_fn = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(error)
 
-            rate.sleep()
+                # Accuracy measurment
+                accuracy = tf.reduce_mean(tf.abs(outputs - predicted_outputs))
 
-    def train(session):
-        NUM_EPOCHS = 100
+                # Saving function for checkpoint creation
+                saver = tf.train.Saver()
 
-        for _ in range(10):
-            # Get input/output data from our position history
-            X, Y = get_io_data(position_history)
+                return tf.global_variables_initializer(), inputs, outputs, predicted_outputs, error, train_fn, saver
 
-            for epoch in range(NUM_EPOCHS):
-                total_error = 0
-                # train_fn triggers backprop
-                total_error += session.run([error, train_fn], { inputs: X, outputs: Y})[0]
 
-            total_error /= NUM_EPOCHS
+    def predict(self, coord):
+        """
+        Predict the next position of an obstacle based on the latest
+        observed history.
 
-            print("Train error: %.6f" % (total_error))
+        Global variable TIMESTEP must be set.
+        """
+        try:
+            rate = rospy.Rate(1.0/TIMESTEP)
+
+            # Set up our graph
+            init, inputs, outputs, predicted_outputs, error, train_fn, saver = self.build_net(self.pred_graph, self.pred_device)
+
+            with tf.Session(graph=self.pred_graph) as sess:
+                saver.restore(sess, self.checkpoint_location)
+
+                while not coord.should_stop():
+                    correct_output = position_history[-1]
+                    X, Y = get_io_data(position_history)
+                    pred_output = sess.run(predicted_outputs, { inputs: X })[-1]
+
+                    xerr = float("{0:.4f}".format(correct_output[0,0]-pred_output[0,0]))
+                    yerr = float("{0:.4f}".format(correct_output[0,1]-pred_output[0,1]))
+                    print(xerr, yerr)
+
+                    if self.update_ready:
+                        # Update the network parameters every so often
+                        saver.restore(sess, self.checkpoint_location)
+                        self.update_ready = False
+
+                    rate.sleep()
+
+        except rospy.ROSInterruptException:
+            coord.request_stop()
+
+    def train(self, coord):
+        """
+        Train the network repeatedly, using the given
+        number of epochs.
+        """
+        try:
+            NUM_EPOCHS = 100
+
+            # Set up our graph
+            init, inputs, outputs, predicted_outputs, error, train_fn, saver = self.build_net(self.train_graph, self.train_device)
+
+            with tf.Session(graph=self.train_graph) as sess:
+                sess.run(init)
+                while not coord.should_stop():
+                    # Get input/output data from our position history
+                    X, Y = get_io_data(position_history)
+
+                    for epoch in range(NUM_EPOCHS):
+                        total_error = 0
+                        # train_fn triggers backprop
+                        total_error += sess.run([error, train_fn], { inputs: X, outputs: Y})[0]
+
+                    total_error /= NUM_EPOCHS
+
+                    # Save a checkpoint
+                    saver.save(sess, self.checkpoint_location)
+                    print("CP saved. Train error: %.6f" % (total_error))
+                    self.update_ready = True   # signal that we're ready to use this new data
+
+        except rospy.ROSInterruptException:
+            coord.request_stop()
 
 if __name__=="__main__":
+    coord = tf.train.Coordinator()
     try:
         rospy.init_node('rnn_data_collector')
         odom = rospy.Subscriber('/robot_0/base_pose_ground_truth', Odometry, odom_callback)
         rospy.sleep(1)  # wait a second for things to initialize
 
-        with tf.Session() as session:
-            session.run(tf.global_variables_initializer())
-            train(session)
+        nn = OnlineLSTMNetwork()
+        train = threading.Thread(target=nn.train, args=(coord,))
+        predict = threading.Thread(target=nn.predict, args=(coord,))
 
-            #t1 = threading.Thread(target=predict, args=(session,))
-            #thread.start_new_thread(test1, (session,))
-            #thread.start_new_thread(predict, (session,))
+        train.start()
+        predict.start()
+
+        coord.join([train, predict])
 
     except rospy.ROSInterruptException:
         pass

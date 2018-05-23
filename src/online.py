@@ -18,57 +18,6 @@ import traceback
 
 import matplotlib.pyplot as plt
 
-TIMESTEP = 0.1   # seconds between samples
-
-# TRAINING DATA: these variables are updated in real time
-last_x = None
-last_y = None
-position_history = None
-
-last_time = None  # so we only keep track of data so often
-
-def odom_callback(data):
-    """
-    Updates the globally stored training data
-    """
-    global position_history
-    global last_x  # x position
-    global last_y  # y position
-    global last_time
-
-    if last_time is None:
-        # initialize the time counter: this must happen
-        # after the node an everything is started
-        last_time = rospy.get_time()
-
-    if (rospy.get_time() > last_time + TIMESTEP):
-        curr_x = data.pose.pose.position.x
-        curr_y = data.pose.pose.position.y
-
-        if last_x is not None:
-            deltax = curr_x - last_x
-            deltay = curr_y - last_y
-
-            if position_history is not None:
-                position_history = np.vstack((position_history, np.array([[[deltax, deltay]]])))
-            else:
-                position_history = np.array([[[deltax, deltay]]])
-
-        last_x = curr_x
-        last_y = curr_y
-        last_time = rospy.get_time()
-
-def get_io_data(pos_hist):
-    """
-    Given a history of delta_x and delta_y's, return input
-    and output data that can be used to train the network.
-    """
-    N = len(pos_hist)
-    ipt = pos_hist[0:N-1]
-    opt = pos_hist[1:N]
-
-    return(ipt, opt)
-
 class LSTMNetwork():
     """
     A representation of an LSTM network, using the 
@@ -134,10 +83,22 @@ class LSTMNetwork():
                 self.saver = saver
 
 
-class OnlineNetworkTrainer():
-    def __init__(self, coord):
+class OnlinePredictionNetwork():
+    """
+    A recurrent network for predicting obstacle motion based on online 
+    observations. Uses two copies of a network in parallel: one for
+    training and one for predicting.
+    """
+    def __init__(self):
+        # TRAINING DATA: these variables are updated in real time
+        self.last_x = None
+        self.last_y = None
+        self.position_history = None
+
+        self.last_time = None  # so we only keep track of data so often
+
         # The coordinator will tell separate threads when to stop
-        self.coord = coord
+        self.coord = tf.train.Coordinator()
 
         # Set up two tensorflow graphs for training and prediction
         self.train_graph = tf.Graph()
@@ -152,8 +113,66 @@ class OnlineNetworkTrainer():
         # Keep track of when a new update to the model is ready
         self.update_ready = False
        
-        # Update rate
-        self.rate = rospy.Rate(1.0/TIMESTEP)
+        # ROS parameters 
+        self.TIMESTEP = 0.1   # seconds between samples
+        rospy.init_node('rnn_online_supervisor')
+        odom = rospy.Subscriber('/robot_0/base_pose_ground_truth', Odometry, self.odom_callback)
+        rospy.sleep(1)  # wait a second for things to initialize
+        self.rate = rospy.Rate(1.0/self.TIMESTEP)
+
+    def start_online_prediction(self):
+        """
+        Start performing online training and prediction
+        """
+        train = threading.Thread(target=self.train)
+        predict = threading.Thread(target=self.predict)
+
+        train.start()
+
+        # Wait until we've saved a trained graph
+        while not self.update_ready:
+            pass
+        predict.start()
+
+        self.coord.join([train, predict])
+
+    def odom_callback(self, data):
+        """
+        Updates the stored training data in self.position_history
+        and the tracked location in self.last_{x|y}
+        """
+        if self.last_time is None:
+            # initialize the time counter: this must happen
+            # after the node an everything is started
+            self.last_time = rospy.get_time()
+
+        if (rospy.get_time() > self.last_time + self.TIMESTEP):
+            curr_x = data.pose.pose.position.x
+            curr_y = data.pose.pose.position.y
+
+            if self.last_x is not None:
+                deltax = curr_x - self.last_x
+                deltay = curr_y - self.last_y
+
+                if self.position_history is not None:
+                    self.position_history = np.vstack((self.position_history, np.array([[[deltax, deltay]]])))
+                else:
+                    self.position_history = np.array([[[deltax, deltay]]])
+
+            self.last_x = curr_x
+            self.last_y = curr_y
+            self.last_time = rospy.get_time()
+
+    def get_io_data(self, pos_hist):
+        """
+        Given a history of delta_x and delta_y's, return input
+        and output data that can be used to train the network.
+        """
+        N = len(pos_hist)
+        ipt = pos_hist[0:N-1]
+        opt = pos_hist[1:N]
+
+        return(ipt, opt)
 
     def test(self):
         """
@@ -177,8 +196,8 @@ class OnlineNetworkTrainer():
                 nn.saver.restore(sess, self.checkpoint_location)
 
                 while not self.coord.should_stop():
-                    correct_output = position_history[-1]
-                    X, Y = get_io_data(position_history)
+                    correct_output = self.position_history[-1]
+                    X, Y = get_io_data(self.position_history)
                     pred_output = sess.run(nn.predicted_outputs, { nn.inputs: X })[-1]
 
                     xerr = abs(correct_output[0,0]-pred_output[0,0])
@@ -207,7 +226,7 @@ class OnlineNetworkTrainer():
 
                     self.rate.sleep()
 
-                    t += TIMESTEP  # update the time for plotting
+                    t += self.TIMESTEP  # update the time for plotting
 
         except rospy.ROSInterruptException:
             self.coord.request_stop()
@@ -233,7 +252,7 @@ class OnlineNetworkTrainer():
         return np.asarray(outputs)
 
     
-    def plot_predictions(self, x, y, observations, sess, nn, num_samples=50, num_steps=3, num_branches=10):
+    def plot_predictions(self, x, y, observations, sess, nn, num_samples=50, num_steps=3, num_branches=10, plot_raw=False):
         """
         Plot future distributions of likely future positions
 
@@ -245,6 +264,7 @@ class OnlineNetworkTrainer():
             num_samples  :  the number of passes through the RNN to use to estimate the distribution of future states
             num_steps    :  how many timesteps into the future to predict
             num_branches :  number of samples from the distribution to use to propagate into the future
+            plot_raw     :  whether to plot actual network output or the gaussian fit
         """
 
         # Get predictions for the first step 
@@ -255,12 +275,16 @@ class OnlineNetworkTrainer():
             # Estimate the underlying distribution (with sample mean and covariance)
             mu = np.mean(predictions, axis=0)
             sigma = np.cov(predictions.T)
-            
-            deltax = predictions[:,0]  # use actual output of network
-            deltay = predictions[:,1]
+           
+            if plot_raw:
+                # use output of network
+                deltax = predictions[:,0]
+                deltay = predictions[:,1]
+            else:
+                # use our gaussian fit
+                deltax, deltay = np.random.multivariate_normal(mu, sigma, 100).T
 
             # Update the plot - note that this takes a long time when there are too many points!
-            #deltax, deltay, dx, dy = np.random.multivariate_normal(mu, sigma, 100).T  # get a bunch of sample predictions
             plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
 
             # Update x and y for the next step using the mean
@@ -295,17 +319,18 @@ class OnlineNetworkTrainer():
                 nn.saver.restore(sess, self.checkpoint_location)
 
                 while not self.coord.should_stop():
-                    x = last_x
-                    y = last_y
+                    x = self.last_x
+                    y = self.last_y
 
                     # plot actual location
                     plt.scatter(x, y, color="red")
 
                     # plot predicted location
-                    self.plot_predictions(x, y, position_history, sess, nn,
+                    self.plot_predictions(x, y, self.position_history, sess, nn,
                             num_samples=10, 
                             num_steps=4, 
-                            num_branches=2)
+                            num_branches=2,
+                            plot_raw=False)
 
                     plt.pause(1e-5)   # this updates the plot in real time
 
@@ -337,7 +362,7 @@ class OnlineNetworkTrainer():
                 sess.run(nn.init)
                 while not self.coord.should_stop():
                     # Get input/output data from our position history
-                    X, Y = get_io_data(position_history)
+                    X, Y = self.get_io_data(self.position_history)
 
                     for epoch in range(NUM_EPOCHS):
                         total_error = 0
@@ -356,20 +381,9 @@ class OnlineNetworkTrainer():
             self.coord.request_stop()
 
 if __name__=="__main__":
-    coord = tf.train.Coordinator()
     try:
-        rospy.init_node('rnn_data_collector')
-        odom = rospy.Subscriber('/robot_0/base_pose_ground_truth', Odometry, odom_callback)
-        rospy.sleep(1)  # wait a second for things to initialize
-
-        ont = OnlineNetworkTrainer(coord)
-        train = threading.Thread(target=ont.train)
-        predict = threading.Thread(target=ont.predict)
-
-        train.start()
-        predict.start()
-
-        coord.join([train, predict])
+        nn = OnlinePredictionNetwork()
+        nn.start_online_prediction()
 
     except rospy.ROSInterruptException:
         pass

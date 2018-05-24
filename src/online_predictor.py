@@ -90,7 +90,7 @@ class OnlinePredictionNetwork():
     observations. Uses two copies of a network in parallel: one for
     training and one for predicting.
     """
-    def __init__(self, robot_name):
+    def __init__(self, robot_name, steps=4):
         # TRAINING DATA: these variables are updated in real time
         self.last_x = None
         self.last_y = None
@@ -115,7 +115,7 @@ class OnlinePredictionNetwork():
         self.update_ready = False
 
         # Number of steps into the future to predict
-        self.num_steps = 4
+        self.num_steps = steps
        
         # ROS parameters 
         self.TIMESTEP = 0.1   # seconds between samples
@@ -379,8 +379,8 @@ class OnlinePredictionNetwork():
             nn = LSTMNetwork(self.pred_graph, self.pred_device)
 
             # plot parameters
-            plt.xlabel("x Position")
-            plt.ylabel("y Position")
+            #plt.xlabel("x Position")
+            #plt.ylabel("y Position")
 
             with tf.Session(graph=self.pred_graph) as sess:
                 nn.saver.restore(sess, self.checkpoint_location)
@@ -412,8 +412,10 @@ class OnlinePredictionNetwork():
 
                     self.rate.sleep()
 
-            plt.show()
-        
+            #plt.show()
+       
+        except rospy.ROSInterruptException:
+            self.coord.request_stop()
         except:
             traceback.print_exc()
             self.coord.request_stop()
@@ -444,9 +446,11 @@ class OnlinePredictionNetwork():
 
                     # Save a checkpoint
                     nn.saver.save(sess, self.checkpoint_location)
-                    print("CP saved. Train error: %.6f" % (total_error))
+                    #print("CP saved. Train error: %.6f" % (total_error))
                     self.update_ready = True   # signal that we're ready to use this new data
 
+        except rospy.ROSInterruptException:
+            self.coord.request_stop()
         except:
             traceback.print_exc()
             self.coord.request_stop()

@@ -39,13 +39,7 @@ try:
                 cmd_vel.linear.x = -speed
                 controller.publish(cmd_vel)
                 rate.sleep()
-        #print("switch")
-        #for k in range(50):
-        #    cmd_vel.linear.x = -0.5
-        #    cmd_vel.linear.y = -2.5
-        #    controller.publish(cmd_vel)
-        #    rate.sleep()
-        #cmd_vel.linear.y = -0.1
+        cmd_vel.linear.y = -cmd_vel.linear.y
 
 except rospy.ROSInterruptException:
     # Quit gracefully with ^C

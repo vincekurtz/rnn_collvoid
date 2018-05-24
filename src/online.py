@@ -13,6 +13,7 @@ import numpy as np
 import tensorflow as tf
 import rospy
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseWithCovarianceStamped
 import threading
 import traceback
 
@@ -89,7 +90,7 @@ class OnlinePredictionNetwork():
     observations. Uses two copies of a network in parallel: one for
     training and one for predicting.
     """
-    def __init__(self):
+    def __init__(self, robot_name):
         # TRAINING DATA: these variables are updated in real time
         self.last_x = None
         self.last_y = None
@@ -112,11 +113,22 @@ class OnlinePredictionNetwork():
 
         # Keep track of when a new update to the model is ready
         self.update_ready = False
+
+        # Number of steps into the future to predict
+        self.num_steps = 4
        
         # ROS parameters 
         self.TIMESTEP = 0.1   # seconds between samples
-        rospy.init_node('rnn_online_supervisor')
-        odom = rospy.Subscriber('/robot_0/base_pose_ground_truth', Odometry, self.odom_callback)
+        self.header = None    # for keeping track of the time
+        rospy.init_node('rnn_online_predictor')
+        odom = rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, self.odom_callback)
+
+        self.prediction_publishers = {}   # a dictionary of publishers so we can publish a PoseWithCovarianceStamped
+                                          # for each timestep we predict into the future
+        for i in range(self.num_steps):
+            prediction_pub = rospy.Publisher(robot_name + '/predicted_pose/step_%s' % (i+1), PoseWithCovarianceStamped, queue_size=20)
+            self.prediction_publishers[i] = prediction_pub
+
         rospy.sleep(1)  # wait a second for things to initialize
         self.rate = rospy.Rate(1.0/self.TIMESTEP)
 
@@ -141,6 +153,8 @@ class OnlinePredictionNetwork():
         Updates the stored training data in self.position_history
         and the tracked location in self.last_{x|y}
         """
+        self.header = data.header   # update a global header for use in other messages too
+
         if self.last_time is None:
             # initialize the time counter: this must happen
             # after the node an everything is started
@@ -252,9 +266,10 @@ class OnlinePredictionNetwork():
         return np.asarray(outputs)
 
     
-    def plot_predictions(self, x, y, observations, sess, nn, num_samples=50, num_steps=3, num_branches=10, plot_raw=False):
+    def plot_predictions(self, x, y, observations, sess, nn, num_samples=50, num_branches=10, plot_raw=False):
         """
-        Plot future distributions of likely future positions
+        Plot future distributions of likely future positions. Use a particle filtering approach
+        to propagate predictions into the future. 
 
         Parameters:
             x, y         :  current position of the obstacle in cartesian coordinates
@@ -262,7 +277,6 @@ class OnlinePredictionNetwork():
             sess         :  an open tensorflow session with a trained model loaded
             nn           :  an LSTMNetwork instance
             num_samples  :  the number of passes through the RNN to use to estimate the distribution of future states
-            num_steps    :  how many timesteps into the future to predict
             num_branches :  number of samples from the distribution to use to propagate into the future
             plot_raw     :  whether to plot actual network output or the gaussian fit
         """
@@ -270,7 +284,7 @@ class OnlinePredictionNetwork():
         # Get predictions for the first step 
         predictions = self.get_predictions(observations, num_samples, sess, nn)
 
-        for i in range(num_steps):
+        for i in range(self.num_steps):
 
             # Estimate the underlying distribution (with sample mean and covariance)
             mu = np.mean(predictions, axis=0)
@@ -290,6 +304,59 @@ class OnlinePredictionNetwork():
             # Update x and y for the next step using the mean
             x += mu[0]
             y += mu[1]
+
+            # Get predictions for the next step
+            predictions = None
+            for j in range(num_branches):
+                sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
+                new_obs = np.append(observations[1:], [[ sample_point ]], axis=0)
+
+                new_pred = self.get_predictions(new_obs, num_samples/num_branches, sess, nn)  # num_samples/num_branches keeps the total number of predictions to about num_samples
+                if j == 0:
+                    predictions = new_pred   # initialize an np array in the first step
+                else:
+                    predictions = np.vstack((predictions, new_pred))
+
+    def make_future_predictions(self, x, y, observations, sess, nn, num_samples=50, num_branches=10):
+        """
+        Calculate distributions of likely future positions using a particle filtering approach,
+        and publish these predictions to a ROS topic. 
+
+        Parameters:
+            x, y         :  current position of the obstacle in cartesian coordinates
+            observations :  past observations of the obstacle (changes in position)
+            sess         :  an open tensorflow session with a trained model loaded
+            nn           :  an LSTMNetwork instance
+            num_samples  :  the number of passes through the RNN to use to estimate the distribution of future states
+            num_branches :  number of samples from the distribution to use to propagate into the future
+        """
+
+        # Get predictions for the first step 
+        predictions = self.get_predictions(observations, num_samples, sess, nn)
+
+        # Configure the ROS message
+        pose_prediction = PoseWithCovarianceStamped()
+
+        for i in range(self.num_steps):
+
+            # Estimate the underlying distribution (with sample mean and covariance)
+            mu = np.mean(predictions, axis=0)
+            sigma = np.cov(predictions.T)
+           
+            # Update x and y for the next step using the mean
+            x += mu[0]
+            y += mu[1]
+
+            # Update the ROS pose message
+            pose_prediction.header = self.header   # to match what we get from odometry
+            pose_prediction.pose.pose.position.x = x
+            pose_prediction.pose.pose.position.y = y
+            pose_prediction.pose.covariance[0] = sigma[0,0]  # x and x
+            pose_prediction.pose.covariance[1] = sigma[0,1]  # x and y
+            pose_prediction.pose.covariance[6] = sigma[1,0]  # y and x
+            pose_prediction.pose.covariance[7] = sigma[1,1]  # x and y
+
+            self.prediction_publishers[i].publish(pose_prediction)
 
             # Get predictions for the next step
             predictions = None
@@ -323,16 +390,20 @@ class OnlinePredictionNetwork():
                     y = self.last_y
 
                     # plot actual location
-                    plt.scatter(x, y, color="red")
+                    #plt.scatter(x, y, color="red")
 
                     # plot predicted location
-                    self.plot_predictions(x, y, self.position_history, sess, nn,
+                    #self.plot_predictions(x, y, self.position_history, sess, nn,
+                    #        num_samples=10, 
+                    #        num_steps=4, 
+                    #        num_branches=2,
+                    #        plot_raw=False)
+                    
+                    self.make_future_predictions(x, y, self.position_history, sess, nn,
                             num_samples=10, 
-                            num_steps=4, 
-                            num_branches=2,
-                            plot_raw=False)
+                            num_branches=1)
 
-                    plt.pause(1e-5)   # this updates the plot in real time
+                    #plt.pause(1e-5)   # this updates the plot in real time
 
                     # Update network parameters
                     if self.update_ready:
@@ -382,7 +453,7 @@ class OnlinePredictionNetwork():
 
 if __name__=="__main__":
     try:
-        nn = OnlinePredictionNetwork()
+        nn = OnlinePredictionNetwork('robot_0')
         nn.start_online_prediction()
 
     except rospy.ROSInterruptException:

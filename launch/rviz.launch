@@ -1,0 +1,4 @@
+<launch>
+    <node pkg="rviz" type="rviz" args="-d $(find rnn_collvoid)/config.rviz" name="rviz" output="screen" />
+    <node pkg="tf" type="static_transform_publisher" name="static_transform_broadcaster" args="0.0 0.0, 0.0 0.0 0.0 0.0 map /robot_0/odom 100" />
+</launch>

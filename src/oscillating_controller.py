@@ -39,7 +39,7 @@ try:
                 cmd_vel.linear.x = -speed
                 controller.publish(cmd_vel)
                 rate.sleep()
-        cmd_vel.linear.y = -cmd_vel.linear.y
+        #cmd_vel.linear.y = -cmd_vel.linear.y
 
 except rospy.ROSInterruptException:
     # Quit gracefully with ^C

@@ -3,7 +3,7 @@ resolution 0.02 # set the resolution of the underlying raytrace model in meters
 interval_sim 15 # simulation timestep in milliseconds
 #interval_real 100
 
-speedup 1.0   # playback speed
+speedup 0.3   # playback speed
 
 window
 ( 
@@ -137,4 +137,4 @@ define obst model
 #omni_robot( pose [ -6.7 0 0 0 ] name "robot_0" color "red")
 #omni_robot( pose [ -6.7 2 0 0 ] name "robot_1" color "black")
 small_omni_robot( pose [ 0 1 0 0 ] name "robot_0" color "red")
-small_omni_robot( pose [ 0 5 0 0 ] name "robot_1" color "black")
+small_omni_robot( pose [ 0 3 0 0 ] name "robot_1" color "black")

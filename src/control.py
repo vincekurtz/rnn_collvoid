@@ -44,13 +44,22 @@ class NonlinearProbabilisticVelocityObstacle():
         if self.is_safe(vdes):
             return vdes
         else:
-            cons = []
-            for i in range(self.N):
-                # Set the constraint that r >= 1 for safety
-                cons.append({
-                    'type': 'ineq', 
-                    'fun': lambda x: self.r_from_velocity(x[0], x[1], self.disallowed_positions[i], (i+1)) - 1
-                    })
+
+            # Set the constraint that r >= 1 for safety.
+            # Hardcoding all constraints for now
+            cons = (
+                {
+                    'type' : 'ineq', 
+                    'fun'  : lambda x : self.r_from_velocity(x[0],x[1],self.disallowed_positions[0],1) - 1,
+                },
+                {
+                    'type' : 'ineq', 
+                    'fun'  : lambda x : self.r_from_velocity(x[0],x[1],self.disallowed_positions[1],2) - 1,
+                },
+                {
+                    'type' : 'ineq', 
+                    'fun'  : lambda x : self.r_from_velocity(x[0],x[1],self.disallowed_positions[2],3) - 1,
+                })
 
             # Set up the performance cost: minimize the difference between the chosen and 
             # desired velocities
@@ -67,9 +76,24 @@ class NonlinearProbabilisticVelocityObstacle():
             v_safe.linear.y = res.x[1]
 
             #print(v_safe)
-            #print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[i], (i+1)))
+            print("")
+            print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[0], 1), cons[0]['fun'](res.x))
+            print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[1], 2), cons[1]['fun'](res.x))
+            print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[2], 3), cons[2]['fun'](res.x))
+            #print(cons[1]['fun'](res.x))
+            #print(cons[2]['fun'](res.x))
+
 
             return v_safe
+
+    def max_r_from_velocity(self, vx, vy):
+        """
+        Returns the maximum normalized distance from the obstacle
+        over all predicted timesteps. Getting this under 1 should
+        ensure that a velocity is good for all predicted timesteps
+        """
+        max_r = max([self.r_from_velocity(vx, vy, self.disallowed_positions[i], (i+1)) for i in range(self.N)])
+        return max_r
 
     def r_from_velocity(self, vx, vy, ellipse, timestep):
         """
@@ -112,7 +136,6 @@ class NonlinearProbabilisticVelocityObstacle():
             if self.disallowed_positions[i].contains_point(xdes):
                 return False
         return True
-
 
 
 
@@ -265,11 +288,12 @@ class DynamicCAController():
                 Sigma = self.predictions[step]["Sigma"]
 
                 p_ellipse = self.find_disallowed_positions(mu, Sigma, theta)
-                v_ellipse = self.find_disallowed_velocities(mu, Sigma, theta)
                 NPVO.disallowed_positions.append(p_ellipse)
 
             (NPVO.x, NPVO.y) = (self.x, self.y)
             best_vel = NPVO.find_safe_velocity(vdes)
+
+            print(best_vel.linear)
 
             # Move the robot down
             self.control_pub.publish(best_vel)
@@ -300,19 +324,6 @@ class DynamicCAController():
         # Points in this ellipse will collide: points outside it are safe
         return ellipse
 
-    def find_disallowed_velocities(self, mu, Sigma, collision_threshold):
-        
-        position_ellipse = self.find_disallowed_positions(mu, Sigma, collision_threshold)
-
-        angle = position_ellipse.angle
-        width = position_ellipse.width/self.timestep
-        height = position_ellipse.height/self.timestep
-        center = ( (position_ellipse.center[0] - self.x)/self.timestep, (position_ellipse.center[1] - self.x)/self.timestep )
-
-        velocity_ellipse = patches.Ellipse(center, width, height, angle=angle)
-        return velocity_ellipse
-
-
 
 if __name__=="__main__":
     try:
@@ -321,7 +332,8 @@ if __name__=="__main__":
         p = threading.Thread(target=predictor_net.start_online_prediction)
         p.start()
 
-        rospy.sleep(4)
+        # Wait a few seconds to be sure the predictor is up and running
+        rospy.sleep(2)
 
         controller = DynamicCAController('robot_1', predictor_net)
         

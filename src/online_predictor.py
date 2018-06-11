@@ -137,7 +137,7 @@ class OnlinePredictionNetwork():
         Start performing online training and prediction
         """
         train = threading.Thread(target=self.train)
-        predict = threading.Thread(target=self.predict)
+        predict = threading.Thread(target=self.predict, kwargs={'mplot':False})
 
         train.start()
 
@@ -370,7 +370,7 @@ class OnlinePredictionNetwork():
                 else:
                     predictions = np.vstack((predictions, new_pred))
 
-    def predict(self):
+    def predict(self, mplot=False):
         """
         Predict the next position based on the observed history.
         """
@@ -378,9 +378,10 @@ class OnlinePredictionNetwork():
             # Set up our graph
             nn = LSTMNetwork(self.pred_graph, self.pred_device)
 
-            # plot parameters
-            #plt.xlabel("x Position")
-            #plt.ylabel("y Position")
+            if mplot:
+                # plot parameters
+                plt.xlabel("x Position")
+                plt.ylabel("y Position")
 
             with tf.Session(graph=self.pred_graph) as sess:
                 nn.saver.restore(sess, self.checkpoint_location)
@@ -389,21 +390,22 @@ class OnlinePredictionNetwork():
                     x = self.last_x
                     y = self.last_y
 
-                    # plot actual location
-                    #plt.scatter(x, y, color="red")
+                    if mplot:
+                        # plot actual location
+                        plt.scatter(x, y, color="red")
 
-                    # plot predicted location
-                    #self.plot_predictions(x, y, self.position_history, sess, nn,
-                    #        num_samples=10, 
-                    #        num_steps=4, 
-                    #        num_branches=2,
-                    #        plot_raw=False)
+                        # plot predicted location
+                        self.plot_predictions(x, y, self.position_history, sess, nn,
+                                num_samples=10, 
+                                num_branches=2,
+                                plot_raw=False)
                     
                     self.make_future_predictions(x, y, self.position_history, sess, nn,
                             num_samples=10, 
                             num_branches=1)
 
-                    #plt.pause(1e-5)   # this updates the plot in real time
+                    if mplot:
+                        plt.pause(1e-5)   # this updates the plot in real time
 
                     # Update network parameters
                     if self.update_ready:
@@ -412,7 +414,8 @@ class OnlinePredictionNetwork():
 
                     self.rate.sleep()
 
-            #plt.show()
+            if mplot:
+                plt.show()
        
         except rospy.ROSInterruptException:
             self.coord.request_stop()

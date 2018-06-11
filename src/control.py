@@ -46,6 +46,16 @@ class NonlinearProbabilisticVelocityObstacle():
         else:
 
             # Set the constraint that r >= 1 for safety.
+            cons = []
+            #for i in range(self.N):
+            #    cons.append(
+            #        {
+            #        'type' : 'ineq',
+            #        'fun'  : lambda x, idx: self.r_from_velocity(x[0],x[1],self.disallowed_positions[idx],idx+1) - 1
+            #        'args' : 1
+            #        }
+            #    )
+                        
             # Hardcoding all constraints for now
             cons = (
                 {
@@ -80,9 +90,8 @@ class NonlinearProbabilisticVelocityObstacle():
             print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[0], 1), cons[0]['fun'](res.x))
             print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[1], 2), cons[1]['fun'](res.x))
             print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[2], 3), cons[2]['fun'](res.x))
-            #print(cons[1]['fun'](res.x))
-            #print(cons[2]['fun'](res.x))
-
+            print(cons[1]['fun'](res.x))
+            print(cons[2]['fun'](res.x))
 
             return v_safe
 
@@ -153,7 +162,7 @@ class DynamicCAController():
 
         #rospy.init_node("controller")
         odom = rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, self.odom_callback)
-        self.control_pub = rospy.Publisher(robot_name + '/cmd_vel', Twist, queue_size=10)
+        self.control_pub = rospy.Publisher(robot_name + '/cmd_vel', Twist, queue_size=100)
 
         # Get a dictionary of topics that hold predictions
         # a given number of steps into the future.
@@ -205,7 +214,7 @@ class DynamicCAController():
         and is fully acutated (can move in any direction at any time)
         """
         dt = self.timestep
-	theta = 0.1   # maximum allowable probibility of collision
+	theta = 0.0001   # maximum allowable probibility of collision
     
         # Wait until we have our position and some predictions
         while (self.x is None) or (self.predictions[0] is None):

@@ -14,13 +14,19 @@ After observing obstacle positions and velocities for a while, an LSTM network p
 
 ### Usage
 
-Record data with `generate_data.launch`.
+Launch a simulation with one oscillating obstacle and one controllable agent:
+```
+roslaunch rnn_collvoid oscillating_sim.launch
+```
 
-Train the network (and perform some brief tests) with `src/train_lstm.py`
+Control the robot with a NPVO:
+```
+rosrun rnn_collvoid control.py
+```
 
-Perform more extensive tests on a trained model with `src/test_trained_model.py`
-
-Test out a controller based on a trained model with `test_controller.launch`
-
-
+Predict the motion of a moving obstacle, and view the predictions in rviz:
+```
+rosrun rnn_collvoid online_predictor.py
+roslaunch rnn_collvoid rviz.launch
+```
 

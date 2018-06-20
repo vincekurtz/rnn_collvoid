@@ -1,0 +1,14 @@
+<launch>
+    <!-- Specify the script used to define the behavior of the oscilatting
+         obstacle. It must be located in rnn_collvoid/src, and publish velocity
+         commands to /robot_0/cmd_vel -->
+    <arg name="control_script" default="oscillating_controller.py" />
+
+    <!-- Launch an empty stage world with 2 robots -->
+    <node pkg="stage_ros" type="stageros" args="$(find rnn_collvoid)/worlds/two_robot.world" name="stage_world" output="screen"/>
+
+    <!-- Move the obstacle -->
+    <node pkg="rnn_collvoid" type="$(arg control_script)" name="obstacle_controller" output="screen" />
+
+</launch>
+

@@ -14,19 +14,18 @@ After observing obstacle positions and velocities for a while, an LSTM network p
 
 ### Usage
 
-Launch a simulation with one oscillating obstacle and one controllable agent:
+Make predictions in real-time, and make a plot of predictions afterwards:
 ```
-roslaunch rnn_collvoid oscillating_sim.launch
-```
-
-Control the robot with a NPVO:
-```
-rosrun rnn_collvoid control.py
+roslaunch prediction_plot.launch
 ```
 
-Predict the motion of a moving obstacle, and view the predictions in rviz:
+Make predictions in real-time, and use them to control a robot:
 ```
-rosrun rnn_collvoid online_predictor.py
+roslaunch predict_control.launch
+```
+
+With the simulation running, visualize what's happening with rviz:
+```
 roslaunch rnn_collvoid rviz.launch
 ```
 

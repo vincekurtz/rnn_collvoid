@@ -183,8 +183,16 @@ class OnlinePredictionNetwork():
         and output data that can be used to train the network.
         """
         N = len(pos_hist)
-        ipt = pos_hist[0:N-1]
-        opt = pos_hist[1:N]
+        n = 100  # number of points to use
+       
+        if (N < n):
+            # use the whole history
+            ipt = pos_hist[0:N-1]
+            opt = pos_hist[1:N]
+        else:
+            # don't bother dealing with the old bits
+            ipt = pos_hist[N-n:N-1]
+            opt = pos_hist[N-n+1:N]
 
         return(ipt, opt)
 
@@ -401,8 +409,8 @@ class OnlinePredictionNetwork():
                                 plot_raw=False)
                     
                     self.make_future_predictions(x, y, self.position_history, sess, nn,
-                            num_samples=10, 
-                            num_branches=1)
+                            num_samples=20, 
+                            num_branches=5)
 
                     if mplot:
                         plt.pause(1e-5)   # this updates the plot in real time

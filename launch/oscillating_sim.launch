@@ -1,5 +1,0 @@
-<launch>
-    <node pkg="stage_ros" type="stageros" args="$(find rnn_collvoid)/worlds/oscillator_test.world" name="stage_world" output="screen"/>
-    <node pkg="rnn_collvoid" type="oscillating_controller.py" name="controller" output="screen" />
-</launch>
-

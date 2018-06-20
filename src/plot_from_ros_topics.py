@@ -69,14 +69,12 @@ def plot_recorded_data():
     Plot actual and projected positions that we've recorded
     """
     # actual positions
-    plt.plot(actual_positions_x, actual_positions_y, 'rx')
+    plt.plot(actual_positions_x, actual_positions_y, 'rx',mew=2)
 
     # predicted positions
     for i in projected_positions:
         for (mu, sigma) in projected_positions[i]:
-            print(mu)
-            print(sigma)
-            x, y = np.random.multivariate_normal(mu, sigma, 50).T
+            x, y = np.random.multivariate_normal(mu, sigma, 100).T
 
             plt.scatter(x, y, color="blue", alpha=0.1, edgecolors="none")
 

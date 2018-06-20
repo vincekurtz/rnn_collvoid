@@ -29,7 +29,7 @@ class LSTMNetwork():
             with graph.device(device):
                 INPUT_SIZE = 2   # last changes 2D change in position
                 OUTPUT_SIZE = 2   # Next 2D change in position
-                RNN_HIDDEN = 100
+                RNN_HIDDEN = 25
                 LEARNING_RATE = 0.003
 
                 inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))

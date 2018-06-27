@@ -29,7 +29,7 @@ class LSTMNetwork():
             with graph.device(device):
                 INPUT_SIZE = 2   # last changes 2D change in position
                 OUTPUT_SIZE = 2   # Next 2D change in position
-                RNN_HIDDEN = 25
+                RNN_HIDDEN = 20
                 LEARNING_RATE = 0.003
 
                 inputs = tf.placeholder(tf.float32, (None, None, INPUT_SIZE))
@@ -185,14 +185,9 @@ class OnlinePredictionNetwork():
         N = len(pos_hist)
         n = 100  # number of points to use
        
-        if (N < n):
-            # use the whole history
-            ipt = pos_hist[0:N-1]
-            opt = pos_hist[1:N]
-        else:
-            # don't bother dealing with the old bits
-            ipt = pos_hist[N-n:N-1]
-            opt = pos_hist[N-n+1:N]
+        # use the whole history
+        ipt = pos_hist[0:N-1]
+        opt = pos_hist[1:N]
 
         return(ipt, opt)
 
@@ -262,10 +257,11 @@ class OnlinePredictionNetwork():
             a (num_samples x output_size) np array of outputs
         """
         outputs = []
+        use_size = 100  # number of samples from the recent history to use when predicting
 
         for i in range(num_samples):
             # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
-            all_pred = sess.run(nn.predicted_outputs, { nn.inputs: observations })
+            all_pred = sess.run(nn.predicted_outputs, { nn.inputs: observations[-use_size:] })
             # We're really only interested in the last prediction: the one for the next step
             next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
             
@@ -345,6 +341,8 @@ class OnlinePredictionNetwork():
         # Configure the ROS message
         pose_prediction = PoseWithCovarianceStamped()
 
+        pred_time = None  #debug
+
         for i in range(self.num_steps):
 
             # Estimate the underlying distribution (with sample mean and covariance)
@@ -365,18 +363,19 @@ class OnlinePredictionNetwork():
             pose_prediction.pose.covariance[7] = sigma[1,1]  # x and y
 
             self.prediction_publishers[i].publish(pose_prediction)
-
+            
             # Get predictions for the next step
-            predictions = None
             for j in range(num_branches):
                 sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
                 new_obs = np.append(observations[1:], [[ sample_point ]], axis=0)
 
                 new_pred = self.get_predictions(new_obs, num_samples/num_branches, sess, nn)  # num_samples/num_branches keeps the total number of predictions to about num_samples
+       
                 if j == 0:
                     predictions = new_pred   # initialize an np array in the first step
                 else:
                     predictions = np.vstack((predictions, new_pred))
+
 
     def predict(self, mplot=False):
         """
@@ -407,7 +406,7 @@ class OnlinePredictionNetwork():
                                 num_samples=10, 
                                 num_branches=2,
                                 plot_raw=False)
-                    
+                   
                     self.make_future_predictions(x, y, self.position_history, sess, nn,
                             num_samples=20, 
                             num_branches=5)
@@ -468,7 +467,7 @@ class OnlinePredictionNetwork():
 
 if __name__=="__main__":
     try:
-        nn = OnlinePredictionNetwork('robot_0')
+        nn = OnlinePredictionNetwork('robot_0', steps=10)
         nn.start_online_prediction()
 
     except rospy.ROSInterruptException:

@@ -14,6 +14,7 @@ Panels:
         - /PoseWithCovariance3/Covariance1
         - /PoseWithCovariance3/Covariance1/Position1
         - /PoseWithCovariance4/Covariance1/Position1
+        - /PoseWithCovariance10
       Splitter Ratio: 0.5
     Tree Height: 775
   - Class: rviz/Selection
@@ -210,6 +211,186 @@ Visualization Manager:
       Topic: /robot_0/predicted_pose/step_4
       Unreliable: false
       Value: true
+    - Alpha: 0
+      Axes Length: 0.100000001
+      Axes Radius: 0.0299999993
+      Class: rviz/PoseWithCovariance
+      Color: 255; 25; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.300000012
+          Color: 204; 51; 204
+          Scale: 50
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.300000012
+      Head Radius: 0.100000001
+      Name: PoseWithCovariance
+      Shaft Length: 1
+      Shaft Radius: 0.0500000007
+      Shape: Axes
+      Topic: /robot_0/predicted_pose/step_5
+      Unreliable: false
+      Value: true
+    - Alpha: 0
+      Axes Length: 0.100000001
+      Axes Radius: 0.0299999993
+      Class: rviz/PoseWithCovariance
+      Color: 255; 25; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.300000012
+          Color: 204; 51; 204
+          Scale: 50
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.300000012
+      Head Radius: 0.100000001
+      Name: PoseWithCovariance
+      Shaft Length: 1
+      Shaft Radius: 0.0500000007
+      Shape: Axes
+      Topic: /robot_0/predicted_pose/step_6
+      Unreliable: false
+      Value: true
+    - Alpha: 0
+      Axes Length: 0.100000001
+      Axes Radius: 0.0299999993
+      Class: rviz/PoseWithCovariance
+      Color: 255; 25; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.300000012
+          Color: 204; 51; 204
+          Scale: 50
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.300000012
+      Head Radius: 0.100000001
+      Name: PoseWithCovariance
+      Shaft Length: 1
+      Shaft Radius: 0.0500000007
+      Shape: Axes
+      Topic: /robot_0/predicted_pose/step_7
+      Unreliable: false
+      Value: true
+    - Alpha: 0
+      Axes Length: 0.100000001
+      Axes Radius: 0.0299999993
+      Class: rviz/PoseWithCovariance
+      Color: 255; 25; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.300000012
+          Color: 204; 51; 204
+          Scale: 50
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.300000012
+      Head Radius: 0.100000001
+      Name: PoseWithCovariance
+      Shaft Length: 1
+      Shaft Radius: 0.0500000007
+      Shape: Axes
+      Topic: /robot_0/predicted_pose/step_8
+      Unreliable: false
+      Value: true
+    - Alpha: 0
+      Axes Length: 0.100000001
+      Axes Radius: 0.0299999993
+      Class: rviz/PoseWithCovariance
+      Color: 255; 25; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.300000012
+          Color: 204; 51; 204
+          Scale: 50
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.300000012
+      Head Radius: 0.100000001
+      Name: PoseWithCovariance
+      Shaft Length: 1
+      Shaft Radius: 0.0500000007
+      Shape: Axes
+      Topic: /robot_0/predicted_pose/step_9
+      Unreliable: false
+      Value: true
+    - Alpha: 0
+      Axes Length: 0.100000001
+      Axes Radius: 0.0299999993
+      Class: rviz/PoseWithCovariance
+      Color: 255; 25; 0
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.300000012
+          Color: 204; 51; 204
+          Scale: 50
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.300000012
+      Head Radius: 0.100000001
+      Name: PoseWithCovariance
+      Shaft Length: 1
+      Shaft Radius: 0.0500000007
+      Shape: Axes
+      Topic: /robot_0/predicted_pose/step_10
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -235,7 +416,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 9.55746841
+      Distance: 16.8435249
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1

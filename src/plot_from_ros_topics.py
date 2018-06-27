@@ -16,10 +16,13 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 # Initialize a rospy node
 rospy.init_node("prediction_plotter")
 
+# Number of steps in the future to record predictions for
+num_steps = 10
+
 # Global variables store realtime infomation
 actual_positions_x = []
 actual_positions_y = []
-projected_positions = { 1:[], 2:[], 3:[], 4:[] }
+projected_positions = { i:[] for i in range(1,num_steps+1) }
 
 # Parameters for timed callbacks
 r = 10  # recording rate of messages, in Hz
@@ -82,10 +85,10 @@ def plot_recorded_data():
 
 # Start subscribers
 rospy.Subscriber("/robot_0/base_pose_ground_truth", Odometry, real_pose_cb)
-rospy.Subscriber("/robot_0/predicted_pose/step_1", PoseWithCovarianceStamped, projected_pose_cb, callback_args=1)
-rospy.Subscriber("/robot_0/predicted_pose/step_2", PoseWithCovarianceStamped, projected_pose_cb, callback_args=2)
-rospy.Subscriber("/robot_0/predicted_pose/step_3", PoseWithCovarianceStamped, projected_pose_cb, callback_args=3)
-rospy.Subscriber("/robot_0/predicted_pose/step_4", PoseWithCovarianceStamped, projected_pose_cb, callback_args=4)
+
+for i in range(1,num_steps+1):
+    topic_name = "/robot_0/predicted_pose/step_%d" % i
+    rospy.Subscriber(topic_name, PoseWithCovarianceStamped, projected_pose_cb, callback_args=i)
 
 while not rospy.is_shutdown():
     rospy.spin()

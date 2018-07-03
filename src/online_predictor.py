@@ -24,11 +24,14 @@ class LSTMNetwork():
     A representation of an LSTM network, using the 
     specified graph
     """
-    def __init__(self, graph, device, variational_recurrent=False):
+    def __init__(self, graph, device, steps=10, variational_recurrent=False):
+
+        self.num_steps=steps
+
         with graph.as_default():
             with graph.device(device):
-                INPUT_SIZE = 2   # last changes 2D change in position
-                OUTPUT_SIZE = 2   # Next 2D change in position
+                INPUT_SIZE = 2                   # last changes in position
+                OUTPUT_SIZE = 2*self.num_steps   # Next N changes in position
                 RNN_HIDDEN = 20
                 LEARNING_RATE = 0.003
 
@@ -137,7 +140,7 @@ class OnlinePredictionNetwork():
         Start performing online training and prediction
         """
         train = threading.Thread(target=self.train)
-        predict = threading.Thread(target=self.predict, kwargs={'mplot':False})
+        predict = threading.Thread(target=self.predict)
 
         train.start()
 
@@ -183,70 +186,17 @@ class OnlinePredictionNetwork():
         and output data that can be used to train the network.
         """
         N = len(pos_hist)
-        n = 100  # number of points to use
        
-        # use the whole history
-        ipt = pos_hist[0:N-1]
-        opt = pos_hist[1:N]
+        # use the whole history as input
+        ipt = pos_hist[0:N-self.num_steps]
+
+        # Calculate outputs as the subsequent steps
+        # example with num_steps=3:
+        #   o = [pos_hist[1:N-2],pos_hist[2:N-1],pos_hist[3:N]]
+        o = [ pos_hist[i:N-(self.num_steps-i)] for i in range(1,self.num_steps+1)]
+        opt = np.concatenate(o, axis=2)
 
         return(ipt, opt)
-
-    def test(self):
-        """
-        Predict the current position of an obstacle based on the latest
-        observed history.
-        """
-        t = 0.0  # keep track of time for plotting
-
-        # plot parameters
-        plt.xlabel("time (s)")
-        plt.ylabel("Absolute Error (rolling average)")
-        xerr_lst = []
-        yerr_lst = []
-
-        try:
-
-            # Set up our graph
-            nn = LSTMNetwork(self.pred_graph, self.pred_device, variational_recurrent=True)
-
-            with tf.Session(graph=self.pred_graph) as sess:
-                nn.saver.restore(sess, self.checkpoint_location)
-
-                while not self.coord.should_stop():
-                    correct_output = self.position_history[-1]
-                    X, Y = get_io_data(self.position_history)
-                    pred_output = sess.run(nn.predicted_outputs, { nn.inputs: X })[-1]
-
-                    xerr = abs(correct_output[0,0]-pred_output[0,0])
-                    yerr = abs(correct_output[0,1]-pred_output[0,1])
-
-                    xerr_lst.append(xerr)
-                    yerr_lst.append(yerr)
-
-                    interval = 1
-                    if ( float("{0:.1f}".format(t)) % interval < 1e-5 ):   # update the average error plot every so often
-                        yerr_avg = np.mean(yerr_lst)
-                        xerr_avg = np.mean(xerr_lst)
-
-                        yerr_lst=[]  # reset the error lists to reset the averaging
-                        xerr_lst=[]
-
-                        # Dynamically update the plot
-                        plt.scatter(t, xerr_avg, color='red')
-                        plt.scatter(t, yerr_avg, color='blue')
-                        plt.pause(1e-9)
-
-                    if self.update_ready:
-                        # Update the network parameters every so often
-                        nn.saver.restore(sess, self.checkpoint_location)
-                        self.update_ready = False
-
-                    self.rate.sleep()
-
-                    t += self.TIMESTEP  # update the time for plotting
-
-        except rospy.ROSInterruptException:
-            self.coord.request_stop()
 
     def get_predictions(self, observations, num_samples, sess, nn):
         """
@@ -255,71 +205,20 @@ class OnlinePredictionNetwork():
 
         Returns:
             a (num_samples x output_size) np array of outputs
+                (where output_size = 2*self.num_steps)
         """
         outputs = []
-        use_size = 100  # number of samples from the recent history to use when predicting
 
         for i in range(num_samples):
             # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
-            all_pred = sess.run(nn.predicted_outputs, { nn.inputs: observations[-use_size:] })
+            all_pred = sess.run(nn.predicted_outputs, { nn.inputs: observations })
+
             # We're really only interested in the last prediction: the one for the next step
-            next_pred = all_pred[-1][0]   # [deltax, deltay, xdot1, ydot1] 
-            
+            next_pred = all_pred[-1][0]
+
             outputs.append(next_pred)
 
         return np.asarray(outputs)
-
-    
-    def plot_predictions(self, x, y, observations, sess, nn, num_samples=50, num_branches=10, plot_raw=False):
-        """
-        Plot future distributions of likely future positions. Use a particle filtering approach
-        to propagate predictions into the future. 
-
-        Parameters:
-            x, y         :  current position of the obstacle in cartesian coordinates
-            observations :  past observations of the obstacle (changes in position)
-            sess         :  an open tensorflow session with a trained model loaded
-            nn           :  an LSTMNetwork instance
-            num_samples  :  the number of passes through the RNN to use to estimate the distribution of future states
-            num_branches :  number of samples from the distribution to use to propagate into the future
-            plot_raw     :  whether to plot actual network output or the gaussian fit
-        """
-
-        # Get predictions for the first step 
-        predictions = self.get_predictions(observations, num_samples, sess, nn)
-
-        for i in range(self.num_steps):
-
-            # Estimate the underlying distribution (with sample mean and covariance)
-            mu = np.mean(predictions, axis=0)
-            sigma = np.cov(predictions.T)
-           
-            if plot_raw:
-                # use output of network
-                deltax = predictions[:,0]
-                deltay = predictions[:,1]
-            else:
-                # use our gaussian fit
-                deltax, deltay = np.random.multivariate_normal(mu, sigma, 100).T
-
-            # Update the plot - note that this takes a long time when there are too many points!
-            plt.scatter(x + deltax, y + deltay, color="blue", alpha=0.2, edgecolors="none")
-
-            # Update x and y for the next step using the mean
-            x += mu[0]
-            y += mu[1]
-
-            # Get predictions for the next step
-            predictions = None
-            for j in range(num_branches):
-                sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
-                new_obs = np.append(observations[1:], [[ sample_point ]], axis=0)
-
-                new_pred = self.get_predictions(new_obs, num_samples/num_branches, sess, nn)  # num_samples/num_branches keeps the total number of predictions to about num_samples
-                if j == 0:
-                    predictions = new_pred   # initialize an np array in the first step
-                else:
-                    predictions = np.vstack((predictions, new_pred))
 
     def make_future_predictions(self, x, y, observations, sess, nn, num_samples=50, num_branches=10):
         """
@@ -335,15 +234,16 @@ class OnlinePredictionNetwork():
             num_branches :  number of samples from the distribution to use to propagate into the future
         """
 
-        # Get predictions for the first step 
-        predictions = self.get_predictions(observations, num_samples, sess, nn)
+        # Get a set of predictions for the next (self.num_steps) steps
+        all_pred = self.get_predictions(observations, num_samples, sess, nn)
 
         # Configure the ROS message
         pose_prediction = PoseWithCovarianceStamped()
 
-        pred_time = None  #debug
-
         for i in range(self.num_steps):
+
+            # get predictions for this step
+            predictions = all_pred[:,2*i:2*i+2]
 
             # Estimate the underlying distribution (with sample mean and covariance)
             mu = np.mean(predictions, axis=0)
@@ -354,7 +254,11 @@ class OnlinePredictionNetwork():
             y += mu[1]
 
             # Update the ROS pose message
-            pose_prediction.header = self.header   # to match what we get from odometry
+
+            # record the time that this prediction is for
+            pose_prediction.header = self.header   
+            pose_prediction.header.stamp += rospy.Duration.from_sec(self.TIMESTEP) * (i+1)
+
             pose_prediction.pose.pose.position.x = x
             pose_prediction.pose.pose.position.y = y
             pose_prediction.pose.covariance[0] = sigma[0,0]  # x and x
@@ -364,31 +268,13 @@ class OnlinePredictionNetwork():
 
             self.prediction_publishers[i].publish(pose_prediction)
             
-            # Get predictions for the next step
-            for j in range(num_branches):
-                sample_point = np.random.multivariate_normal(mu, sigma, 1)[0]
-                new_obs = np.append(observations[1:], [[ sample_point ]], axis=0)
-
-                new_pred = self.get_predictions(new_obs, num_samples/num_branches, sess, nn)  # num_samples/num_branches keeps the total number of predictions to about num_samples
-       
-                if j == 0:
-                    predictions = new_pred   # initialize an np array in the first step
-                else:
-                    predictions = np.vstack((predictions, new_pred))
-
-
-    def predict(self, mplot=False):
+    def predict(self):
         """
         Predict the next position based on the observed history.
         """
         try:
             # Set up our graph
-            nn = LSTMNetwork(self.pred_graph, self.pred_device)
-
-            if mplot:
-                # plot parameters
-                plt.xlabel("x Position")
-                plt.ylabel("y Position")
+            nn = LSTMNetwork(self.pred_graph, self.pred_device, steps=self.num_steps)
 
             with tf.Session(graph=self.pred_graph) as sess:
                 nn.saver.restore(sess, self.checkpoint_location)
@@ -397,22 +283,9 @@ class OnlinePredictionNetwork():
                     x = self.last_x
                     y = self.last_y
 
-                    if mplot:
-                        # plot actual location
-                        plt.scatter(x, y, color="red")
-
-                        # plot predicted location
-                        self.plot_predictions(x, y, self.position_history, sess, nn,
-                                num_samples=10, 
-                                num_branches=2,
-                                plot_raw=False)
-                   
                     self.make_future_predictions(x, y, self.position_history, sess, nn,
-                            num_samples=20, 
+                            num_samples=5, 
                             num_branches=5)
-
-                    if mplot:
-                        plt.pause(1e-5)   # this updates the plot in real time
 
                     # Update network parameters
                     if self.update_ready:
@@ -421,14 +294,27 @@ class OnlinePredictionNetwork():
 
                     self.rate.sleep()
 
-            if mplot:
-                plt.show()
-       
         except rospy.ROSInterruptException:
             self.coord.request_stop()
         except:
             traceback.print_exc()
             self.coord.request_stop()
+
+    def train_once(self, nn, sess, NUM_EPOCHS=100):
+
+        # Get input/output data from our position history
+        X, Y = self.get_io_data(self.position_history)
+
+        for epoch in range(NUM_EPOCHS):
+            total_error = 0
+            # train_fn triggers backprop
+            total_error += sess.run([nn.error, nn.train_fn], { nn.inputs: X, nn.outputs: Y})[0]
+
+        total_error /= NUM_EPOCHS
+
+        # Save a checkpoint
+        nn.saver.save(sess, self.checkpoint_location)
+        #print("CP saved. Train error: %.6f" % (total_error))
 
     def train(self):
         """
@@ -436,27 +322,15 @@ class OnlinePredictionNetwork():
         number of epochs.
         """
         try:
-            NUM_EPOCHS = 100
-
             # Set up our graph
-            nn = LSTMNetwork(self.train_graph, self.train_device)
+            nn = LSTMNetwork(self.train_graph, self.train_device, steps=self.num_steps)
 
             with tf.Session(graph=self.train_graph) as sess:
                 sess.run(nn.init)
                 while not self.coord.should_stop():
-                    # Get input/output data from our position history
-                    X, Y = self.get_io_data(self.position_history)
 
-                    for epoch in range(NUM_EPOCHS):
-                        total_error = 0
-                        # train_fn triggers backprop
-                        total_error += sess.run([nn.error, nn.train_fn], { nn.inputs: X, nn.outputs: Y})[0]
+                    self.train_once(nn,sess)
 
-                    total_error /= NUM_EPOCHS
-
-                    # Save a checkpoint
-                    nn.saver.save(sess, self.checkpoint_location)
-                    #print("CP saved. Train error: %.6f" % (total_error))
                     self.update_ready = True   # signal that we're ready to use this new data
 
         except rospy.ROSInterruptException:

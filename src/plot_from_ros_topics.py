@@ -25,7 +25,7 @@ actual_positions_x = []
 actual_positions_y = []
 actual_position_time = []
 
-projected_positions = []
+projected_positions = {}
 projected_position_time = []
 
 # Wait to get a prediction before starting to record actual pose
@@ -60,6 +60,10 @@ def real_pose_cb(data):
         last_time = rospy.get_time()
 
 def projected_pose_cb(data, step_num):
+    """
+    Put predicted pose data in a dictionary, index by the time at 
+    which the prediction was made
+    """
     global projected_positions
     global got_projected_position
     global projected_position_time
@@ -82,8 +86,7 @@ def projected_pose_cb(data, step_num):
 
     mu = np.array([x,y])
 
-    projected_positions.append((mu, sigma))
-    projected_position_time.append(t)
+    projected_positions[t] = (mu, sigma)
     
 def plot_recorded_data():
     """
@@ -96,20 +99,23 @@ def plot_recorded_data():
     plt.plot(actual_positions_x, actual_positions_y, 'rx',mew=2)
 
     # predicted positions
-    for (mu, sigma) in projected_positions:
+    for t in projected_positions:
+        mu, sigma = projected_positions[t]
         x, y = np.random.multivariate_normal(mu, sigma, 100).T
 
-        plt.scatter(x, y, color="blue", alpha=0.1, edgecolors="none")
+        plt.scatter(x, y, color="blue", alpha=0.01, edgecolors="none")
+    
+    plt.xlabel("x Position")
+    plt.ylabel("y Position")
 
     plt.savefig('/tmp/xy_predictions.png')
-    #plt.show()
+    plt.show()
 
 def plot_recorded_data2(xlim, ylim1, ylim2):
     """
     Plot actual and projected positions as a function of time
     """
     global actual_position_time
-    global projected_position_time
     
     plt.clf()  # clear the plot
 
@@ -117,22 +123,39 @@ def plot_recorded_data2(xlim, ylim1, ylim2):
     delta_ize = lambda lst : np.array([ lst[i+1] - lst[i] for i in range(1, len(lst)-1) ])
 
     # actual positions
-    delta_x = delta_ize(actual_positions_x)
-    delta_y = delta_ize(actual_positions_y)
-    
+    delta_x = actual_positions_x
+    delta_y = actual_positions_y
+
+    # predicted positions
+    last_pred_x = None
+    last_pred_y = None
+
+    pred_x = []
+    pred_y = []
+    x_confidence = []
+    y_confidence = []
+
+    projected_position_time = sorted(projected_positions.iterkeys())
+
+    print(len(actual_position_time))
+    print(len(projected_position_time))
+
+    for t in projected_position_time:
+        # traverse the dictionary in order by timestamp
+        mu, sigma = projected_positions[t]
+
+        pred_x.append(mu[0])
+        pred_y.append(mu[1])
+        x_confidence.append(sigma[0][0])
+        y_confidence.append(sigma[1][1])
+
     # calculate predictions
-    pred_x = [ i[0][0] for i in projected_positions] 
-    pred_y = [ i[0][1] for i in projected_positions]
-
-    x_confidence = np.array([ 100*i[1][0][0] for i in projected_positions])[1:-1]
-    y_confidence = np.array([ 100*i[1][1][1] for i in projected_positions])[1:-1]
-
-    pred_delta_x = delta_ize(pred_x)
-    pred_delta_y = delta_ize(pred_y)
+    pred_delta_x = pred_x
+    pred_delta_y = pred_y
 
     # strip first and last elements from times so dimensions match for deltas
-    actual_position_time = np.array(actual_position_time[1:-1])
-    projected_position_time = np.array(projected_position_time[1:-1])
+    actual_position_time = np.array(actual_position_time)
+    projected_position_time = np.array(projected_position_time)
 
     fig = plt.figure(figsize=(12,8))
 
@@ -143,7 +166,7 @@ def plot_recorded_data2(xlim, ylim1, ylim2):
     ax1.set_ylabel('$\Delta x$')
     ax1.plot(actual_position_time, delta_x, 'kx', label="Data")  # actual data
     ax1.plot(projected_position_time, pred_delta_x, 'b.', label="Mean")
-    ax1.fill_between(projected_position_time, pred_delta_x-x_confidence, pred_delta_x+x_confidence, alpha=0.2, label="Uncertainty Estimate ($100\sigma$)")
+    #ax1.fill_between(projected_position_time, pred_delta_x-x_confidence, pred_delta_x+x_confidence, alpha=0.2, label="Uncertainty Estimate ($100\sigma$)")
     ax1.legend()
 
     # y on axis 2
@@ -153,12 +176,12 @@ def plot_recorded_data2(xlim, ylim1, ylim2):
     ax2.set_ylabel('$\Delta y$')
     ax2.set_xlabel('Time (s)')
     ax2.plot(actual_position_time, delta_y, 'kx', label="Data")  # actual data
-    ax2.plot(projected_position_time, pred_delta_y, label="Mean")
-    ax2.fill_between(projected_position_time, pred_delta_y-y_confidence, pred_delta_y+y_confidence, alpha=0.2, label="Uncertainty Estimate ($100\sigma$)")
+    ax2.plot(projected_position_time, pred_delta_y, 'b.', label="Mean")
+    #ax2.fill_between(projected_position_time, pred_delta_y-y_confidence, pred_delta_y+y_confidence, alpha=0.2, label="Uncertainty Estimate ($100\sigma$)")
     ax2.legend()
 
     plt.savefig("/tmp/lstm_pred.png")
-    #plt.show()
+    plt.show()
 
 def plot_gp_regression(xlim, ylim1, ylim2):
     """
@@ -218,4 +241,4 @@ while not rospy.is_shutdown():
 #plot_gp_regression(xlim=(0,10), ylim1=(-0.8, 0.8), ylim2=(-0.2, 0.2))
 #plot_recorded_data2(xlim=(0,10), ylim1=(-0.8,0.8), ylim2=(-0.2,0.2))
 plot_recorded_data()
-plot_recorded_data2(xlim=(50,60), ylim1=(-0.8,0.8), ylim2=(-0.2,0.2))
+#plot_recorded_data2(xlim=(50,60), ylim1=(-0.8,0.8), ylim2=(-0.2,0.2))

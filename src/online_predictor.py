@@ -8,7 +8,6 @@
 #
 ##
 
-import csv
 import numpy as np
 import tensorflow as tf
 import rospy
@@ -254,8 +253,6 @@ class OnlinePredictionNetwork():
             y += mu[1]
 
             # Update the ROS pose message
-
-            # record the time that this prediction is for
             pose_prediction.header = self.header   
             pose_prediction.header.stamp += rospy.Duration.from_sec(self.TIMESTEP) * (i+1)
 

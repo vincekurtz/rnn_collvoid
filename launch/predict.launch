@@ -1,3 +1,11 @@
 <launch>
-    <node pkg="rnn_collvoid" type="online_predictor.py" name="predictor" output="screen" />
+    <include file="$(find rnn_collvoid)/launch/start_simulation.launch" >
+        <arg name="control_script" value="oscillating_controller.py" />
+    </include>
+
+    <include file="$(find rnn_collvoid)/launch/make_prediction.launch" />
+
+    <node pkg="rnn_collvoid" type="plot_from_ros_topics.py" name="matplotlib_plotter" output="screen" />
+
 </launch>
+

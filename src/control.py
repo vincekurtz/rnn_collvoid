@@ -7,11 +7,14 @@
 #
 ##
 
-from online_predictor import *
 from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav_msgs.msg import Odometry
 from scipy.stats import multivariate_normal
 from scipy.optimize import minimize
 import matplotlib.patches as patches
+import rospy
+import numpy as np
 
 class NonlinearProbabilisticVelocityObstacle():
     """
@@ -155,106 +158,64 @@ class DynamicCAController():
     uses predictions of obstacle behavior to output
     safe velocities for another robot in the workspace.
     """
-    def __init__(self, robot_name, prediction_object):
+    def __init__(self, robot_name, steps=10, theta=0.1):
+        # Number of steps into the future that are predicted
+        self.num_steps = steps
+
         # My location
         self.x = None
         self.y = None
 
-        #rospy.init_node("controller")
-        odom = rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, self.odom_callback)
-        self.control_pub = rospy.Publisher(robot_name + '/cmd_vel', Twist, queue_size=100)
+        # maximum allowable probability of collision
+        self.theta = theta
 
-        # Get a dictionary of topics that hold predictions
-        # a given number of steps into the future.
+        # an object to hold predicted occupied locations
+        self.predictions = {}           
+
+        # ROS setup
+        rospy.init_node("controller")
+        self.control_pub = rospy.Publisher(robot_name + '/cmd_vel', Twist, queue_size=100)
+        odom = rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, self.odom_callback)
+
+        # Prediction subscribers: one for each timestep in the future
         prediction_subscribers = {}
-        self.predictions = {}
         
-        pred_pubs = prediction_object.prediction_publishers
-        for i in pred_pubs:
-            topic = pred_pubs[i].name
+        for i in range(self.num_steps):
+            
+            topic = '/robot_0/predicted_pose/step_%s' % (i+1)  # one indexing
             prediction_subscribers[i] = rospy.Subscriber(topic, PoseWithCovarianceStamped, self.predict_callback, (i,))
+
             # predictions[i] will be set in the predictor callback
             self.predictions[i] = None  
 
-
-        # Set the timestep and rate for prediction
-        self.timestep = prediction_object.TIMESTEP
-        self.rate = prediction_object.rate
+        # rate for publication of command velocity
+        self.rate = rospy.Rate(10)  # Hz
 
         # Define a safe distance from the obstacle
         obstacle_radius = 0.125
         my_radius = 0.125
-        self.safe_radius = obstacle_radius + 2*my_radius
+        buffer_dist = 0.8
+        self.safe_radius = obstacle_radius + my_radius + buffer_dist
 
     def predict_callback(self, data, args):
         """
         Store mean and covariance information from 
         the subscribed prediction topics.
-
-        TODO: take header timestamps into account for greater precision
         """
-        step_index = args[0]  # unpack from tuple
+        step_index = args[0]  # unpack from single element tuple
+        
         mu = np.array([data.pose.pose.position.x, data.pose.pose.position.y])
         Sigma = np.array([[data.pose.covariance[0], data.pose.covariance[1]],
                           [data.pose.covariance[6], data.pose.covariance[7]]])
 
-        self.predictions[step_index] = {"mu" : mu, "Sigma" : Sigma}
+        # time this prediction is for
+        t = data.header.stamp
+
+        self.predictions[step_index] = {"mu" : mu, "Sigma" : Sigma, "time" : t}
 
     def odom_callback(self, data):
         self.x = data.pose.pose.position.x
         self.y = data.pose.pose.position.y
-
-    def one_step_threshold_control(self, vdes):
-        """
-        Given the distribution of future positions at the next timestep,
-        move the robot in a way that minimizes deviation from the desired
-        velocity, subject to a constraint on the probability of collision.
-
-        WARNING: Assumes that the robot is aligned in the x-direction of the world,
-        and is fully acutated (can move in any direction at any time)
-        """
-        dt = self.timestep
-	theta = 0.0001   # maximum allowable probibility of collision
-    
-        # Wait until we have our position and some predictions
-        while (self.x is None) or (self.predictions[0] is None):
-            self.rate.sleep()
-
-        while not rospy.is_shutdown():  # keep applying the control indefinitely
-
-            # Calculate desired position
-            xdes = [self.x + (vdes.linear.x*dt), self.y + (vdes.linear.y*dt)]
-            
-            # Construct a random variable representing probable obstacle position
-            mu = self.predictions[0]["mu"]  # using only the first step
-            Sigma = self.predictions[0]["Sigma"]
-            rv = multivariate_normal(mu, Sigma)
-
-            # Calculate an approximate (upper bound) probability of collision
-            coll_prob = lambda x : self.collision_probability(rv, x)
-
-            # We want to minimize the distance between desired and actual velocities, thus this cost
-            performance_cost = lambda x : (x[0] - xdes[0])**2 + (x[1]-xdes[1])**2
-
-            # Calculate an optimal next position
-            cons = ({'type': 'ineq', 'fun': lambda x : theta - coll_prob(x)})
-            res = minimize(performance_cost, xdes, constraints=cons, options={"maxiter": 2000}, method="COBYLA")
-            best_x = res.x
-
-            if not res.success:
-                print("Unable to find optimal solution!")
-                print(res)
-
-            # translate the best position into a command velocity
-            cmd_vel = Twist()
-            best_x_vel = (best_x[0] - self.x)/dt
-            best_y_vel = (best_x[1] - self.y)/dt
-            cmd_vel.linear.x = best_x_vel
-            cmd_vel.linear.y = best_y_vel
-
-            self.control_pub.publish(cmd_vel)
-
-            self.rate.sleep()
 
     def collision_probability(self, rv, position):
         """
@@ -281,7 +242,6 @@ class DynamicCAController():
         will never lead to a collision (according to our current
         predictions, with a given probability). 
         """
-        theta = 0.1 # maximum allowable probability of collision
 
         # Wait until we have our position and some predictions
         while (self.x is None) or (self.predictions[0] is None):
@@ -290,33 +250,113 @@ class DynamicCAController():
         print("Beginning control sequence")
         while not rospy.is_shutdown():
 
-            NPVO = NonlinearProbabilisticVelocityObstacle(self.timestep, len(self.predictions))
 
-            for step in self.predictions:
-                mu = self.predictions[step]["mu"]
-                Sigma = self.predictions[step]["Sigma"]
+            cons = self.get_constraints()
 
-                p_ellipse = self.find_disallowed_positions(mu, Sigma, theta)
-                NPVO.disallowed_positions.append(p_ellipse)
+            # Set up the performance cost: minimize the difference between the chosen and 
+            # desired velocities
+            performance_cost = lambda x : (x[0] - vdes.linear.x)**2 + (x[1] - vdes.linear.y)**2
 
-            (NPVO.x, NPVO.y) = (self.x, self.y)
-            best_vel = NPVO.find_safe_velocity(vdes)
+            res = minimize(performance_cost, [vdes.linear.x, vdes.linear.y], constraints=cons, options={"maxiter": 2000}, method="COBYLA")
 
-            print(best_vel.linear)
+            best_vel = Twist()
+            best_vel.linear.x = res.x[0]
+            best_vel.linear.y = res.x[1]
 
-            # Move the robot down
+            # Move the robot in the chosen position
             self.control_pub.publish(best_vel)
 
             self.rate.sleep()
 
-    def find_disallowed_positions(self, mu, Sigma, collision_threshold):
+    def get_constraints(self):
+        """
+        Return a list of minimization constraints such that a chosen velocity doesn't
+        lead to a collision
+        """
+
+        cons = []
+
+        # Current time and position of the controllable robot
+        my_x = self.x
+        my_y = self.y
+        my_time = rospy.get_rostime()
+
+        for step in self.predictions:
+            mu = self.predictions[step]["mu"]
+            Sigma = self.predictions[step]["Sigma"]
+            t = self.predictions[step]["time"]
+
+            pred = (mu, Sigma, t)
+
+            c = {
+                    'type' : 'ineq',
+                    'fun' : lambda x, pred, my_x, my_y, my_time : self.distance_from_collision(pred, x, my_x, my_y, my_time) - 1,
+                    'args' : (pred, my_x, my_y, my_time)
+                  }
+
+            cons.append(c)
+
+        return cons
+
+
+    def distance_from_collision(self, prediction, velocity, my_x, my_y, my_time):
+        """
+        For a given velocity (vx, vy), find a normalized distance (r) from
+        a collision. 
+        
+        If r <= 1, the given velocity is unsafe. 
+        """
+        # unpack prediciton information
+        mu, Sigma, pred_time = prediction
+
+        # time until we get to the when the predictions are relevant
+        time_delta = (pred_time - my_time).to_sec()
+
+        # Calculate positions that are occupied
+        ellipse = self.disallowed_positions(mu, Sigma)
+
+        # calculate the projected position from following this velocity
+        x = my_x + velocity[0]*time_delta
+        y = my_y + velocity[1]*time_delta
+
+        # Now we normalize the ellipse
+        xc = x - ellipse.center[0]
+        yc = y - ellipse.center[1]
+        cos_angle = np.cos(np.radians(180.-ellipse.angle))
+        sin_angle = np.sin(np.radians(180.-ellipse.angle))
+        xct = xc * cos_angle - yc * sin_angle
+        yct = xc * sin_angle + yc * cos_angle
+
+        # and check distance to the unit circle
+        r = (xct**2/(ellipse.width/2.)**2) + (yct**2/(ellipse.height/2.)**2)
+
+        return r
+
+    def disallowed_velocities(self, mu, Sigma, pred_time):
+        """
+        Return an ellipse of velocities that will result in a collision 
+        """
+        time_delta = (pred_time - rospy.get_rostime()).to_sec()
+        position_ellipse = self.disallowed_positions(mu, Sigma)
+
+        # the ellipse of velocities is a linear transformation of the ellipse of positions
+        center = (position_ellipse.center[0] - self.x, position_ellipse.center[1] - self.y)
+        width = position_ellipse.width
+        height = position_ellipse.height
+        angle = position_ellipse.angle
+    
+        velocity_ellipse = patches.Ellipse(center, width, height, angle)
+
+        return velocity_ellipse
+
+    def disallowed_positions(self, mu, Sigma):
         """
         Find positions that will lead to a collision with
         probability over a given threshold.
         """
         # If we stay this Mahalanobis distance from the predicted obstacle
         # position, we should be safe
-        safe_m_distance = np.sqrt(-2*np.log(1-collision_threshold))
+        safe_m_distance = np.sqrt(-2*np.log(1-self.theta))
 
         # Now convert this distance to an ellipse
         (W,v) = np.linalg.eig(Sigma)
@@ -333,31 +373,35 @@ class DynamicCAController():
         # Points in this ellipse will collide: points outside it are safe
         return ellipse
 
+    def in_ellipse(self, x, y, ellipse):
+        """
+        Check if a point (x,y) is contained in an ellipse
+        """
+        # normalize the ellipse
+        xc = x - ellipse.center[0]
+        yc = y - ellipse.center[1]
+        cos_angle = np.cos(np.radians(180.-ellipse.angle))
+        sin_angle = np.sin(np.radians(180.-ellipse.angle))
+        xct = xc * cos_angle - yc * sin_angle
+        yct = xc * sin_angle + yc * cos_angle
+
+        # and check distance to the unit circle
+        r = (xct**2/(ellipse.width/2.)**2) + (yct**2/(ellipse.height/2.)**2)
+
+        return (r<=1)
+
 
 if __name__=="__main__":
-    try:
-        # Start the predictor in one thread
-        predictor_net = OnlinePredictionNetwork('robot_0', steps=3)
-        p = threading.Thread(target=predictor_net.start_online_prediction)
-        p.start()
+    # Wait a few seconds to be sure the predictor is up and running
+    rospy.sleep(2)
 
-        # Wait a few seconds to be sure the predictor is up and running
-        rospy.sleep(2)
+    controller = DynamicCAController('robot_1', steps=10, theta=0.0001)
+    
+    desired_velocity = Twist()
+    desired_velocity.linear.y = -0.7
 
-        controller = DynamicCAController('robot_1', predictor_net)
-        
-        desired_velocity = Twist()
-        desired_velocity.linear.y = -0.7
+    controller.NPVO_control(desired_velocity)
+    
+    # Keep rospy up so we can quit with ^C
+    rospy.spin()
 
-        controller.NPVO_control(desired_velocity)
-        
-        # Keep rospy up so we can quit with ^C
-        rospy.spin()
-
-    except rospy.ROSInterruptException:
-        # We pressed ^C: stop all threads in the predictor
-        predictor_net.coord.request_stop()
-    except:
-        # Some other error occured: print the traceback too
-        traceback.print_exc()
-        predictor_net.coord.request_stop()

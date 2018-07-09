@@ -15,8 +15,7 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped
 import threading
 import traceback
-
-import matplotlib.pyplot as plt
+import sys
 
 class LSTMNetwork():
     """
@@ -39,6 +38,7 @@ class LSTMNetwork():
 
                 # Create a basic LSTM cell, there are other options too
                 cell = tf.nn.rnn_cell.BasicLSTMCell(RNN_HIDDEN, state_is_tuple=True)
+                #cell = tf.nn.rnn_cell.BasicRNNCell(RNN_HIDDEN)
 
                 # Add dropout
                 cell = tf.nn.rnn_cell.DropoutWrapper(
@@ -111,7 +111,7 @@ class OnlinePredictionNetwork():
         self.pred_device = '/cpu:0'
 
         # Specify where to save checkpoints
-        self.checkpoint_location = "/tmp/graph.checkpoint"
+        self.checkpoint_location = "/tmp/%s_graph.checkpoint" % robot_name
 
         # Keep track of when a new update to the model is ready
         self.update_ready = False
@@ -338,7 +338,9 @@ class OnlinePredictionNetwork():
 
 if __name__=="__main__":
     try:
-        nn = OnlinePredictionNetwork('robot_0', steps=10)
+        name = sys.argv[1]
+
+        nn = OnlinePredictionNetwork(name, steps=10)
         nn.start_online_prediction()
 
     except rospy.ROSInterruptException:

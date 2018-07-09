@@ -204,7 +204,7 @@ def plot_gp_regression(xlim, ylim1, ylim2):
     Y2 = np.array([delta_y]).T
 
 
-    K = GPy.kern.Matern32(input_dim=1)
+    K = GPy.kern.RBF(input_dim=1)
     icm = GPy.util.multioutput.ICM(input_dim=1, num_outputs=2, kernel=K)
     m = GPy.models.GPCoregionalizedRegression([X1,X2],[Y1,Y2], kernel=icm)
     m.optimize()
@@ -224,7 +224,7 @@ def plot_gp_regression(xlim, ylim1, ylim2):
     m.plot(plot_limits=xlim,fixed_inputs=[(1,1)],which_data_rows=slice(100,200),ax=ax2)
 
     plt.savefig("/tmp/gp_pred.png")
-    #plt.show()
+    plt.show()
     
 
 # Start subscribers

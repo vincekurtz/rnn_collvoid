@@ -14,143 +14,8 @@ from scipy.stats import multivariate_normal
 from scipy.optimize import minimize
 import matplotlib.patches as patches
 import rospy
+import sys
 import numpy as np
-
-class NonlinearProbabilisticVelocityObstacle():
-    """
-    A representation of all velocities that will 
-    lead to a collision in N timesteps, given the latest
-    observations
-    """
-    def __init__(self, timestep, num_steps):
-        self.dt = timestep
-        self.N = num_steps
-
-        # A list of ellipses representing positions
-        # that will lead to a likely collision in the 
-        # next N timesteps
-        self.disallowed_positions = []
-
-        # Current position, allows us to find safe velocities
-        # while reasoning mostly in position space
-        self.x = None
-        self.y = None
-
-    def find_safe_velocity(self, vdes):
-        """
-        Find the velocity that is closest to the
-        preferred one, but outside of this velocity
-        obstacle.
-        """
-        assert len(self.disallowed_positions) == self.N
-
-        if self.is_safe(vdes):
-            return vdes
-        else:
-
-            # Set the constraint that r >= 1 for safety.
-            cons = []
-            #for i in range(self.N):
-            #    cons.append(
-            #        {
-            #        'type' : 'ineq',
-            #        'fun'  : lambda x, idx: self.r_from_velocity(x[0],x[1],self.disallowed_positions[idx],idx+1) - 1
-            #        'args' : 1
-            #        }
-            #    )
-                        
-            # Hardcoding all constraints for now
-            cons = (
-                {
-                    'type' : 'ineq', 
-                    'fun'  : lambda x : self.r_from_velocity(x[0],x[1],self.disallowed_positions[0],1) - 1,
-                },
-                {
-                    'type' : 'ineq', 
-                    'fun'  : lambda x : self.r_from_velocity(x[0],x[1],self.disallowed_positions[1],2) - 1,
-                },
-                {
-                    'type' : 'ineq', 
-                    'fun'  : lambda x : self.r_from_velocity(x[0],x[1],self.disallowed_positions[2],3) - 1,
-                })
-
-            # Set up the performance cost: minimize the difference between the chosen and 
-            # desired velocities
-            performance_cost = lambda x : (x[0] - vdes.linear.x)**2 + (x[1] - vdes.linear.y)**2
-
-            res = minimize(performance_cost, [vdes.linear.x, vdes.linear.y], constraints=cons, options={"maxiter": 2000}, method="COBYLA")
-
-            if not res.success:
-                print(res)
-
-            # Choose a safe desired velocity
-            v_safe = Twist()
-            v_safe.linear.x = res.x[0]
-            v_safe.linear.y = res.x[1]
-
-            #print(v_safe)
-            print("")
-            print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[0], 1), cons[0]['fun'](res.x))
-            print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[1], 2), cons[1]['fun'](res.x))
-            print(self.r_from_velocity(res.x[0],res.x[1], self.disallowed_positions[2], 3), cons[2]['fun'](res.x))
-            print(cons[1]['fun'](res.x))
-            print(cons[2]['fun'](res.x))
-
-            return v_safe
-
-    def max_r_from_velocity(self, vx, vy):
-        """
-        Returns the maximum normalized distance from the obstacle
-        over all predicted timesteps. Getting this under 1 should
-        ensure that a velocity is good for all predicted timesteps
-        """
-        max_r = max([self.r_from_velocity(vx, vy, self.disallowed_positions[i], (i+1)) for i in range(self.N)])
-        return max_r
-
-    def r_from_velocity(self, vx, vy, ellipse, timestep):
-        """
-        Given a velocity and an ellipse of unsafe positions,
-        find a normalized distance, r, of the velocity from
-        that ellipse in the given timestep.
-
-        i.e. if r <= 1, the velocity is unsafe.
-        """
-        time_delta = self.dt*timestep  # the converstion between position and velocity depends
-                                       # how far in the future we're looking
-        
-        xdes = [self.x + (vx*time_delta), self.y + (vy*time_delta)]
-        
-        x = xdes[0]
-        y = xdes[1]
-
-        ellipse = self.disallowed_positions[0]  # just using the first step for now
-
-        # Now we normalize the ellipse
-        xc = x - ellipse.center[0]
-        yc = y - ellipse.center[1]
-        cos_angle = np.cos(np.radians(180.-ellipse.angle))
-        sin_angle = np.sin(np.radians(180.-ellipse.angle))
-        xct = xc * cos_angle - yc * sin_angle
-        yct = xc * sin_angle + yc * cos_angle
-
-        # and check distance to the unit circle
-        r = (xct**2/(ellipse.width/2.)**2) + (yct**2/(ellipse.height/2.)**2)
-
-        return r
-
-    def is_safe(self, velocity):
-        """
-        Indicate whether the given velocity is safe or not
-        """
-        for i in range(self.N):
-            time_delta = (i+1)*self.dt
-            xdes = [self.x + (velocity.linear.x*time_delta), self.y + (velocity.linear.y*time_delta)]
-            if self.disallowed_positions[i].contains_point(xdes):
-                return False
-        return True
-
-
-
 
 class DynamicCAController():
     """
@@ -158,13 +23,14 @@ class DynamicCAController():
     uses predictions of obstacle behavior to output
     safe velocities for another robot in the workspace.
     """
-    def __init__(self, robot_name, steps=10, theta=0.1):
+    def __init__(self, robot_name, obstacle_name, steps=10, theta=0.1):
         # Number of steps into the future that are predicted
         self.num_steps = steps
 
-        # My location
+        # My location and preferred velocity
         self.x = None
         self.y = None
+        self.cmd_vel_nominal = Twist()
 
         # maximum allowable probability of collision
         self.theta = theta
@@ -175,14 +41,15 @@ class DynamicCAController():
         # ROS setup
         rospy.init_node("controller")
         self.control_pub = rospy.Publisher(robot_name + '/cmd_vel', Twist, queue_size=100)
-        odom = rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, self.odom_callback)
+        rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, self.odom_callback)
+        rospy.Subscriber(robot_name + '/cmd_vel_nominal', Twist, self.nominal_vel_callback)
 
         # Prediction subscribers: one for each timestep in the future
         prediction_subscribers = {}
         
         for i in range(self.num_steps):
             
-            topic = '/robot_0/predicted_pose/step_%s' % (i+1)  # one indexing
+            topic = obstacle_name +'/predicted_pose/step_%s' % (i+1)  # one indexing
             prediction_subscribers[i] = rospy.Subscriber(topic, PoseWithCovarianceStamped, self.predict_callback, (i,))
 
             # predictions[i] will be set in the predictor callback
@@ -194,7 +61,7 @@ class DynamicCAController():
         # Define a safe distance from the obstacle
         obstacle_radius = 0.125
         my_radius = 0.125
-        buffer_dist = 0.8
+        buffer_dist = 0.6
         self.safe_radius = obstacle_radius + my_radius + buffer_dist
 
     def predict_callback(self, data, args):
@@ -217,6 +84,9 @@ class DynamicCAController():
         self.x = data.pose.pose.position.x
         self.y = data.pose.pose.position.y
 
+    def nominal_vel_callback(self, data):
+        self.cmd_vel_nominal = data
+
     def collision_probability(self, rv, position):
         """
         Returns the probability of collision at a given position,
@@ -234,7 +104,21 @@ class DynamicCAController():
 
         return rv.cdf(top_right(position)) - rv.cdf(bottom_right(position)) - rv.cdf(top_left(position)) + rv.cdf(bottom_left(position))
 
-    def NPVO_control(self, vdes):
+    def nominal_control(self):
+        """
+        Output a nominal velocity (w/o collision avoidance) to follow
+        """
+        v = Twist()
+
+        # Use a proportional controller to keep the x value close to zero
+        kp_x = 1
+
+        v.linear.y = -0.7
+        v.linear.x = -kp_x * self.x
+
+        return v
+
+    def NPVO_control(self):
         """
         A controller based on the concept of a Nonlinear Probibalistic
         Velocity Obstacle. At each timestep, a velocity is chosen that
@@ -250,7 +134,10 @@ class DynamicCAController():
         print("Beginning control sequence")
         while not rospy.is_shutdown():
 
+            # Get a desired velocity
+            vdes = self.cmd_vel_nominal
 
+            # Get collision avoidance constraints
             cons = self.get_constraints()
 
             # Set up the performance cost: minimize the difference between the chosen and 
@@ -332,23 +219,6 @@ class DynamicCAController():
 
         return r
 
-    def disallowed_velocities(self, mu, Sigma, pred_time):
-        """
-        Return an ellipse of velocities that will result in a collision 
-        """
-        time_delta = (pred_time - rospy.get_rostime()).to_sec()
-        position_ellipse = self.disallowed_positions(mu, Sigma)
-
-        # the ellipse of velocities is a linear transformation of the ellipse of positions
-        center = (position_ellipse.center[0] - self.x, position_ellipse.center[1] - self.y)
-        width = position_ellipse.width
-        height = position_ellipse.height
-        angle = position_ellipse.angle
-    
-        velocity_ellipse = patches.Ellipse(center, width, height, angle)
-
-        return velocity_ellipse
-
     def disallowed_positions(self, mu, Sigma):
         """
         Find positions that will lead to a collision with
@@ -392,15 +262,14 @@ class DynamicCAController():
 
 
 if __name__=="__main__":
+    robot_name = sys.argv[1]
+    obstacle_name = sys.argv[2]
+
     # Wait a few seconds to be sure the predictor is up and running
-    rospy.sleep(2)
+    rospy.sleep(5)
 
-    controller = DynamicCAController('robot_1', steps=10, theta=0.0001)
-    
-    desired_velocity = Twist()
-    desired_velocity.linear.y = -0.7
-
-    controller.NPVO_control(desired_velocity)
+    controller = DynamicCAController(robot_name, obstacle_name, steps=10, theta=0.001)
+    controller.NPVO_control()
     
     # Keep rospy up so we can quit with ^C
     rospy.spin()

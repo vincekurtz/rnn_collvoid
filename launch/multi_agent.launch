@@ -1,0 +1,17 @@
+<launch>
+    <!-- Launch the stage world -->
+    <node pkg="stage_ros" type="stageros" args="$(find rnn_collvoid)/worlds/multi.world" name="stage_world" output="screen"/>
+
+    <!-- Begin the predictors -->
+    <node pkg="rnn_collvoid" type="online_predictor.py" args="robot_0" name="r0_predictor" output="screen" />
+    <node pkg="rnn_collvoid" type="online_predictor.py" args="robot_1" name="r1_predictor" output="screen" />
+
+    <!-- Begin the nominal controllers -->
+    <node pkg="rnn_collvoid" type="simple_controller.py" args="robot_1 2 0" name="r1_nominal" output="screen" />
+    <node pkg="rnn_collvoid" type="simple_controller.py" args="robot_0 -2 0" name="r0_nominal" output="screen" />
+
+    <!-- Begin the NPVO controllers -->
+    <node pkg="rnn_collvoid" type="control.py" args="robot_1 robot_0" name="r1_npvo" output="screen" />
+    <node pkg="rnn_collvoid" type="control.py" args="robot_0 robot_1" name="r0_npvo" output="screen" />
+</launch>
+

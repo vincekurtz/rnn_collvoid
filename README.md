@@ -16,12 +16,17 @@ After observing obstacle positions and velocities for a while, an LSTM network p
 
 Make predictions in real-time, and make a plot of predictions afterwards:
 ```
-roslaunch predict.launch
+roslaunch rnn_collvoid predict.launch
 ```
 
 Make predictions in real-time, and use them to control a robot:
 ```
-roslaunch control.launch
+roslaunch rnn_collvoid control.launch
+```
+
+Use this prediction system on two robots to avoid a collision with each other
+```
+roslaunch rnn_collvoid multi_agent.launch
 ```
 
 With the simulation running, visualize what's happening with rviz:

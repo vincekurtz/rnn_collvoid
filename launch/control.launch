@@ -7,7 +7,7 @@
 
     <node pkg="rnn_collvoid" type="simple_controller.py" name="nominal_control" args="robot_1 0 -3" />
 
-    <node pkg="rnn_collvoid" type="control.py" name="robot_controller" args="robot_1" output="screen" />
+    <node pkg="rnn_collvoid" type="control.py" name="robot_controller" args="robot_1 robot_0" output="screen" />
 
 </launch>
 

@@ -12,6 +12,7 @@ import math
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
 
 if len(sys.argv) < 4:
     print("Usage: python %s [robot_name] [goal_x] [goal_y]" % sys.argv[0])
@@ -33,6 +34,7 @@ def odom_callback(data):
 # initialize the node, publisher, subscriber
 rospy.init_node("simple_controller", anonymous=True)
 pub = rospy.Publisher(robot_name + '/cmd_vel_nominal', Twist, queue_size=10)
+goal_pub = rospy.Publisher(robot_name + '/goal_reached', Bool, queue_size=10)
 odom = rospy.Subscriber(robot_name + '/base_pose_ground_truth', Odometry, odom_callback)
 
 def proportional_controller(pose, goal):
@@ -61,10 +63,25 @@ def dist(pose1, pose2):
     d_squared = (pose1.position.x - pose2.position.x)**2 + (pose1.position.y - pose2.position.y)**2
     return math.sqrt(d_squared)
 
-# go to the given position
-while (not rospy.is_shutdown()) and (dist(pose,goal) > 0.01):
-    cmd_vel = proportional_controller(pose, goal)
-    pub.publish(cmd_vel)
+def goto(goal):
+    """ Go to the given goal position """
+    global pose
 
-    rospy.sleep(0.1)
+    while (not rospy.is_shutdown()) and (dist(pose,goal) > 0.1):
+        # publish that we haven't reached the goal yet
+        goal_pub.publish(False)
 
+        cmd_vel = proportional_controller(pose, goal)
+        pub.publish(cmd_vel)
+
+        rospy.sleep(0.1)
+
+    # finally, publish that we've reached the goal
+    goal_pub.publish(True)
+
+    # and publish a zero command so we stop
+    pub.publish(Twist())
+
+# just keep going the the same goal repeatedly
+while not rospy.is_shutdown():
+    goto(goal)

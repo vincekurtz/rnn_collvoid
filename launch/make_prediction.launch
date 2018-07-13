@@ -1,3 +1,3 @@
 <launch>
-    <node pkg="rnn_collvoid" type="online_predictor.py" name="predictor" args="robot_0" output="screen" />
+    <node pkg="rnn_collvoid" type="online_predictor.py" name="predictor" args="robot_0" output="screen" required="true" />
 </launch>

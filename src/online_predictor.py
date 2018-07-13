@@ -294,8 +294,10 @@ class OnlinePredictionNetwork():
         except rospy.ROSInterruptException:
             self.coord.request_stop()
         except:
-            traceback.print_exc()
+            print("UNMODELED ERROR!")
             self.coord.request_stop()
+            sys.exit(1)
+
 
     def train_once(self, nn, sess, NUM_EPOCHS=100):
 
@@ -333,8 +335,10 @@ class OnlinePredictionNetwork():
         except rospy.ROSInterruptException:
             self.coord.request_stop()
         except:
-            traceback.print_exc()
+            print("UNMODELED ERROR!")
             self.coord.request_stop()
+            sys.exit(1)
+
 
 if __name__=="__main__":
     try:
@@ -345,3 +349,6 @@ if __name__=="__main__":
 
     except rospy.ROSInterruptException:
         pass
+    except:
+        print("UNOMDELED ERROR!!!")
+        sys.exit(1)

@@ -9,7 +9,7 @@
 
 #echo "" > results.txt
 
-for i in {1..10};
+for i in {1..100};
 do
     result=$(roslaunch rnn_collvoid control.launch | grep "TRIAL FINISHED" | awk '{print $5}')
     echo $result >> results.txt

@@ -141,7 +141,9 @@ class OnlinePredictionNetwork():
         train = threading.Thread(target=self.train)
         predict = threading.Thread(target=self.predict)
 
+        rospy.sleep(1)
         train.start()
+        rospy.sleep(1)
 
         # Wait until we've saved a trained graph
         while not self.update_ready:
@@ -293,10 +295,6 @@ class OnlinePredictionNetwork():
 
         except rospy.ROSInterruptException:
             self.coord.request_stop()
-        except:
-            print("UNMODELED ERROR!")
-            self.coord.request_stop()
-            sys.exit(1)
 
 
     def train_once(self, nn, sess, NUM_EPOCHS=100):
@@ -334,10 +332,6 @@ class OnlinePredictionNetwork():
 
         except rospy.ROSInterruptException:
             self.coord.request_stop()
-        except:
-            print("UNMODELED ERROR!")
-            self.coord.request_stop()
-            sys.exit(1)
 
 
 if __name__=="__main__":
@@ -351,4 +345,5 @@ if __name__=="__main__":
         pass
     except:
         print("UNOMDELED ERROR!!!")
+        nn.coord.request_stop()
         sys.exit(1)

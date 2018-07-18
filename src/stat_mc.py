@@ -68,7 +68,7 @@ class DynamicCAController():
         # Define a safe distance from the obstacle
         obstacle_radius = 0.125
         my_radius = 0.125
-        buffer_dist = 0.6
+        buffer_dist = 1.0
         self.safe_radius = obstacle_radius + my_radius + buffer_dist
 
         # keep track of a given trial (for statistical model checking)
@@ -336,6 +336,6 @@ if __name__=="__main__":
     # Wait a few seconds to be sure the predictor is up and running
     rospy.sleep(5)
 
-    controller = DynamicCAController(robot_name, obstacle_name, steps=10, theta=0.001)
+    controller = DynamicCAController(robot_name, obstacle_name, steps=10, theta=0.00000000001)
     controller.NPVO_verification()
     

@@ -283,7 +283,7 @@ class OnlinePredictionNetwork():
                     y = self.last_y
 
                     self.make_future_predictions(x, y, self.position_history, sess, nn,
-                            num_samples=5, 
+                            num_samples=10, 
                             num_branches=5)
 
                     # Update network parameters

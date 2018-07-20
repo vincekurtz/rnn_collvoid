@@ -1,13 +1,8 @@
 <launch>
-    <include file="$(find rnn_collvoid)/launch/start_simulation.launch" >
-        <arg name="control_script" value="oscillating_controller.py" />
-    </include>
 
-    <include file="$(find rnn_collvoid)/launch/make_prediction.launch" />
+    <node pkg="rnn_collvoid" type="random_controller.py" name="random_control" />
 
-    <node pkg="rnn_collvoid" type="simple_controller.py" name="nominal_control" args="robot_1 0 -3" />
-
-    <node pkg="rnn_collvoid" type="stat_mc.py" name="robot_controller" args="robot_1 robot_0" output="screen" />
+    <node pkg="rnn_collvoid" type="statistical_model_checker.py" name="model_checker" output="screen" required="true"/>
 
 </launch>
 

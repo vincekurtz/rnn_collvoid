@@ -11,12 +11,13 @@
 #
 ##
 
+import rospy
+import threading
+import sys 
 import numpy as np
 import tensorflow as tf
-import rospy
+import matplotlib.patches as patches
 from geometry_msgs.msg import Vector3
-import threading
-import sys
 
 class LSTMNetwork():
     """
@@ -94,8 +95,11 @@ class OnlinePredictionNetwork():
     training and one for predicting.
     """
     def __init__(self, steps=4):
-        # TRAINING DATA: these variables are updated in real time
+        # List of previous actual positions
         self.position_history = None
+
+        # List of previous predicted positions
+        self.predicted_pos = []
 
         # The coordinator will tell separate threads when to stop
         self.coord = tf.train.Coordinator()
@@ -111,26 +115,26 @@ class OnlinePredictionNetwork():
         self.checkpoint_location = "/tmp/statmc_graph.checkpoint"
 
         # Keep track of when a new update to the model is ready
-        self.update_ready = True
-        self.predict_ready = True
+        self.update_ready = False
+        self.predict_ready = False
 
         # Number of steps into the future to predict
         self.num_steps = steps
        
         # ROS parameters 
         rospy.init_node('rnn_online_predictor')
-        rospy.Subscriber('/last_position_change', Vector3, self.odom_callback_one)
 
         # keep track of number of steps predicted
         self.i = 0
-        
-        self.start_online_train_predict()
 
+        self.start_online_train_predict()
 
     def start_online_train_predict(self):
         """
         Start performing online training in another thread
         """
+        print("\n===> Beginning New Trial\n")
+
         predict = threading.Thread(target=self.start_predicting)
         train = threading.Thread(target=self.train)
         
@@ -139,34 +143,109 @@ class OnlinePredictionNetwork():
 
         self.coord.join([predict, train])
 
-    def odom_callback_one(self, data):
+    def odom_callback(self, data, args):
         """
-        Updates the training data in self.position_history
+        Updates actual data in self.position_history, triggers a new prediction,
+        and evaluates past predictions based on the latest data. 
         """
-        deltax = data.x
-        deltay = data.y
-
-        if self.position_history is not None:
-            self.position_history = np.vstack((self.position_history, np.array([[[deltax, deltay]]])))
-        else:
-            self.position_history = np.array([[[deltax, deltay]]])
-
-    def odom_callback_two(self, data, args):
-        """
-        triggers a prediction
-        """
-        if self.coord.should_stop():
-            rospy.signal_shutdown("Got shutdown request from self.coord, stopping ROS")
-
         sess = args[0]
         nn = args[1]
-        self.predict(sess, nn)
 
-        self.i += 1
+        N = 20  # Length of a given run
+        
+        # update training data in self.position_history
+        if self.position_history is not None:
+            self.position_history = np.vstack((self.position_history, np.array([[[data.x, data.y]]])))
+        else:
+            self.position_history = np.array([[[data.x, data.y]]])
 
-        if self.i > 10:
-            print("i exceeded 10. stopping")
-            self.coord.request_stop()
+        # Make and evaluate predictions
+        if self.predict_ready:
+            # Make a prediction using the latest data
+            self.predict(sess, nn)
+
+            # Evaluate previous predictions
+            sat = self.eval_predictions()
+            
+            # Use warning level so we can see what's going on while grepping stdout
+            rospy.logwarn("Evaluating predictions ... %s / %s" % (self.i, N))
+
+            # Stop if any prediction fails to satisfy the specification
+            if not sat:
+                rospy.logwarn("Failed to satisfy specification!")
+                print("\n===> Failed to satisfy specification!")
+                print("===> Result: 0\n")
+                self.coord.request_stop()
+                rospy.signal_shutdown("Failed to satisfy specification")
+
+            # Stop after a fixed number of iterations
+            self.i += 1
+            if self.i > N:
+                rospy.logwarn("Specification satisfied!")
+                print("\n===> Specification satisfied!")
+                print("===> Result: 1\n")
+                self.coord.request_stop()
+                rospy.signal_shutdown("Reached target iterations")
+        else:
+            print("Collecting training data ... %s / %s " % (len(self.position_history), self.num_steps+1) )
+            rospy.logwarn("Collecting training data ... %s / %s " % (len(self.position_history), self.num_steps+1) )
+    
+    def eval_predictions(self):
+        """
+        Evaluate the given predictions against the actual historical data. Specifically,
+        test to make sure the error for all predicted future steps is below a threshold
+        defined by the covariance of that prediction. 
+        """
+
+        # Align predictions such that predicted[i] corresponds to predictions made
+        # when the actual position was actual[i]
+        actual = self.position_history[self.num_steps+1:]
+        predicted = self.predicted_pos
+
+        # We need to have actual data for self.num_steps after any prediction
+        if len(actual) < self.num_steps + 1:
+            return True
+
+        # find the index of the latest evaluatable prediction 
+        idx = len(actual)-1 - self.num_steps
+
+        for i in range(self.num_steps):
+            a = actual[idx+i+1]    # actual result for this step
+            p = predicted[idx][i]  # latest prediction for this step
+
+            # scale up sigma, since this is easier than setting an insane threshold directly
+            sat = self.within_threshold(a[0], p["mu"], p["Sigma"]*1e3, 0.99)
+
+            if not sat:
+                return False
+        return True
+
+
+    def within_threshold(self, val, mu, Sigma, thresh):
+        """
+        Indicate if 'val' is within the given probabilistic threshold of
+        the 2d Gaussian distribution described by mu, Sigma
+        """
+        # Construct an ellipse containing all values within the threshold
+        
+        # Maximum safe Mahalanobis distance from mu
+        safe_m_distance = np.sqrt(-2*np.log(1-thresh))
+
+        # Eigenvalues and vectors of the covariance
+        (W,v) = np.linalg.eig(Sigma)
+
+        # Ellipse parameters
+        angle = np.angle((v[0,0]+v[1,0]*1j),deg=True)
+        width = safe_m_distance*np.sqrt(W[0])
+        height = safe_m_distance*np.sqrt(W[1])
+        center = (mu[0], mu[1])
+
+        ellipse = patches.Ellipse(center, width, height, angle=angle)
+        #print("")
+        #print("val: %s" % val)
+        #print("center: %s\nwidth: %s\nheight: %s\nangle: %s" % (center, width, height, angle))
+        
+        return(ellipse.contains_point(val))
 
     def get_io_data(self):
         """
@@ -198,9 +277,10 @@ class OnlinePredictionNetwork():
                 nn = LSTMNetwork(self.pred_graph, self.pred_device, steps=self.num_steps)
                 sess.run(nn.init)
 
-                self.pred_sub = rospy.Subscriber('/last_position_change', Vector3, self.odom_callback_two, callback_args=(sess,nn))
+                # Start subscribing to /last_position_change
+                # We start here so that the prediction network can be an argument to the callback
+                self.pred_sub = rospy.Subscriber('/last_position_change', Vector3, self.odom_callback, callback_args=(sess,nn))
                 
-                print("spinning")
                 rospy.spin()
 
         except rospy.ROSInterruptException:
@@ -211,24 +291,29 @@ class OnlinePredictionNetwork():
         """
         Predict the next positions based on the observed history.
         """
-        if self.predict_ready:  # wait for the training process to start
             
-            if self.update_ready:
-                nn.saver.restore(sess, self.checkpoint_location)
-                self.update_ready = False
+        if self.update_ready:
+            nn.saver.restore(sess, self.checkpoint_location)
+            self.update_ready = False
 
-            all_pred = self.get_raw_predictions(sess, nn, num_samples)
+        all_pred = self.get_raw_predictions(sess, nn, num_samples)
 
-            for i in range(self.num_steps):
-                
-                # Get predictions for this timestep
-                predictions = all_pred[:,2*i:2*i+2]
+        p = {}
 
-                # Make Gaussian MLE of underlying distribution
-                mu = np.mean(predictions, axis=0)
-                Sigma = np.cov(predictions.T)
+        for i in range(self.num_steps):
+            
+            # Get predictions for this timestep
+            predictions = all_pred[:,2*i:2*i+2]
 
-                print("Prediction: %s" %mu)
+            # Make Gaussian MLE of underlying distribution
+            mu = np.mean(predictions, axis=0)
+            Sigma = np.cov(predictions.T)
+            
+            # Update prediction data for this step
+            p[i] = {"mu": mu, "Sigma": Sigma}
+        
+        # Update all prediction data
+        self.predicted_pos.append(p)
 
     def get_raw_predictions(self, sess, nn, num_samples):
         """
@@ -250,6 +335,7 @@ class OnlinePredictionNetwork():
 
     def train(self):
         try:
+
             # Set up our graph
             nn = LSTMNetwork(self.train_graph, self.train_device, steps=self.num_steps)
 

@@ -26,22 +26,21 @@ rate = rospy.Rate(3)  # Hz
 p = Vector3()
 
 # Posible changes in position that we could take
-delta_ps = np.array([[1,0],[0,1],[-1,0],[0,-1]])
+delta_ps = np.array([[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[-1,-1],[1,-1],[0,0]])
 p_idx = np.array([i for i in range(len(delta_ps))])
 
-for i in range(N):
 
-    if not rospy.is_shutdown():
-        # choose a random direction
-        #idx = np.random.choice(p_idx)
+while not rospy.is_shutdown():
+    # choose a random direction
+    idx = np.random.choice(p_idx)
+    idx = 8
 
-        idx = 0
-        delta_p = delta_ps[idx]
+    delta_p = delta_ps[idx]
+    p.x = delta_p[0]
+    p.y = delta_p[1]
 
-        p.x = delta_p[0]
-        p.y = delta_p[1]
+    pub.publish(p)
+    print(p)
 
-        pub.publish(p)
+    rate.sleep()
 
-        rate.sleep()
-    

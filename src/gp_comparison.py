@@ -16,14 +16,14 @@ actual_position_time = [3.465, 3.57, 3.675, 3.7800000000000002, 3.885, 3.99, 4.0
 actual_positions_x = [0.30000000000000016, 0.19500000000000006, 0.09000000000000001, -0.014999999999999986, -0.11999999999999998, -0.22500000000000003, -0.3000000000000001, -0.195, -0.08999999999999996, 0.015000000000000041, 0.12000000000000004, 0.2250000000000001, 0.3300000000000002, 0.4500000000000003, 0.5550000000000004, 0.6000000000000004, 0.49500000000000033, 0.39000000000000024, 0.28500000000000014, 0.18000000000000005, 0.07500000000000001, -0.029999999999999985, -0.11999999999999998, -0.24000000000000005, -0.34500000000000014, -0.37500000000000017, -0.25500000000000006, -0.14999999999999997, -0.04499999999999996, 0.06000000000000004, 0.16500000000000004, 0.28500000000000014, 0.40500000000000025, 0.5100000000000003, 0.4350000000000003, 0.3300000000000002, 0.21000000000000008, 0.09000000000000001, 1.3877787807814457e-17, -0.11999999999999998, -0.22500000000000003, -0.3300000000000001, -0.4350000000000002, -0.5100000000000002, -0.42000000000000015, -0.30000000000000004, -0.19499999999999995, -0.0749999999999999, 0.045000000000000095, 0.15000000000000008, 0.25500000000000017, 0.36000000000000026, 0.3750000000000003, 0.2700000000000002, 0.1650000000000001, 0.06000000000000007, -0.04499999999999993, -0.1499999999999999, -0.255, -0.3450000000000001, -0.4650000000000002, -0.5700000000000003, -0.5850000000000003, -0.4800000000000002, -0.3750000000000001, -0.28500000000000003, -0.16499999999999992, -0.0599999999999999, 0.045000000000000095, 0.15000000000000008, 0.25500000000000017, 0.2700000000000002, 0.1650000000000001, 0.04500000000000007, -0.05999999999999993, -0.16499999999999992, -0.27, -0.3750000000000001, -0.4800000000000002, -0.5850000000000003, -0.6900000000000004, -0.6750000000000004, -0.5700000000000003, -0.4650000000000002, -0.3600000000000001, -0.24, -0.1349999999999999, -0.029999999999999902, 0.0750000000000001, 0.1800000000000001, 0.13500000000000006, 0.03000000000000007, -0.05999999999999993, -0.17999999999999994, -0.30000000000000004, -0.40500000000000014, -0.5100000000000002, -0.6150000000000003, -0.7050000000000004, -0.8250000000000005, -0.7500000000000004, -0.6450000000000004, -0.5400000000000003, -0.43500000000000016, -0.33000000000000007, -0.22499999999999998, -0.1199999999999999, -0.014999999999999902, 0.0900000000000001, 9.71445146547012e-17, -0.1049999999999999, -0.20999999999999996]
 actual_positions_y = [0.6730000000000118, 0.6625000000000122, 0.6520000000000126, 0.641500000000013, 0.6310000000000133, 0.6205000000000137, 0.6100000000000141, 0.5995000000000145, 0.5890000000000148, 0.5785000000000152, 0.5680000000000156, 0.557500000000016, 0.5470000000000164, 0.5350000000000168, 0.5245000000000172, 0.5140000000000176, 0.5035000000000179, 0.49300000000001803, 0.482500000000018, 0.472000000000018, 0.461500000000018, 0.451000000000018, 0.442000000000018, 0.430000000000018, 0.41950000000001797, 0.40750000000001796, 0.39550000000001795, 0.38500000000001794, 0.37450000000001793, 0.3640000000000179, 0.3535000000000179, 0.3415000000000179, 0.3295000000000179, 0.3190000000000179, 0.30850000000001787, 0.29800000000001786, 0.28600000000001785, 0.27400000000001784, 0.26500000000001783, 0.2530000000000178, 0.2425000000000178, 0.2320000000000178, 0.2215000000000178, 0.21100000000001778, 0.20200000000001778, 0.19000000000001777, 0.17950000000001776, 0.16750000000001775, 0.15550000000001774, 0.14500000000001773, 0.13450000000001772, 0.12400000000001771, 0.1135000000000177, 0.10300000000001769, 0.09250000000001768, 0.08200000000001767, 0.07150000000001766, 0.06100000000001765, 0.05050000000001764, 0.041500000000017634, 0.029500000000017623, 0.019000000000017614, 0.008500000000017613, -0.0019999999999823857, -0.012499999999982385, -0.021499999999982387, -0.0334999999999824, -0.04399999999998241, -0.05449999999998242, -0.06499999999998242, -0.07549999999998243, -0.08599999999998244, -0.09649999999998245, -0.10849999999998246, -0.11899999999998247, -0.12949999999998246, -0.13999999999998247, -0.15049999999998248, -0.1609999999999825, -0.1714999999999825, -0.1819999999999825, -0.19249999999998252, -0.20299999999998253, -0.21349999999998254, -0.22399999999998255, -0.23599999999998256, -0.24649999999998257, -0.2569999999999826, -0.2674999999999826, -0.2779999999999826, -0.2884999999999826, -0.2989999999999826, -0.3079999999999826, -0.31999999999998263, -0.33199999999998264, -0.34249999999998265, -0.35299999999998266, -0.36349999999998267, -0.3724999999999827, -0.3844999999999827, -0.3949999999999827, -0.4054999999999827, -0.4159999999999827, -0.4264999999999827, -0.43699999999998274, -0.44749999999998274, -0.45799999999998275, -0.46849999999998276, -0.4789999999999828, -0.4909999999999828, -0.5014999999999827, -0.5119999999999824]
 
-def train_gp_model():
+def train_gp_model(times, x_positions, y_positions):
     """
     Train a Gaussian Process model to predict future positions based on past observations
     """
-    X1 = np.array([actual_position_time]).T
-    X2 = np.array([actual_position_time]).T
-    Y1 = np.array([actual_positions_x]).T
-    Y2 = np.array([actual_positions_y]).T
+    X1 = np.array([times]).T
+    X2 = np.array([times]).T
+    Y1 = np.array([x_positions]).T
+    Y2 = np.array([y_positions]).T
 
     K = GPy.kern.Matern32(input_dim=1)
     icm = GPy.util.multioutput.ICM(input_dim=1, num_outputs=2, kernel=K)
@@ -32,58 +32,58 @@ def train_gp_model():
 
     return m
 
-def plot_gp_regression(m, xlim, ylim1, ylim2):
-    """ 
-    Plot actual positions and those predicted with a Gaussian Process model
-    """
-    # Plot stuff!
-    fig = plt.figure()
-    ax1 = fig.add_subplot(211)
-    ax1.set_xlim(xlim)
-    ax1.set_ylim(ylim1)
-    ax1.set_ylabel('$\Delta x$')
-    m.plot(plot_limits=xlim,fixed_inputs=[(1,0)],which_data_rows=slice(0,100),ax=ax1)
-    ax2 = fig.add_subplot(212)
-    ax2.set_xlim(xlim)
-    ax2.set_ylim(ylim2)
-    ax2.set_ylabel('$\Delta y$')
-    ax2.set_xlabel('time (s)')
-    m.plot(plot_limits=xlim,fixed_inputs=[(1,1)],which_data_rows=slice(100,200),ax=ax2)
-
-    plt.show()
-
-def plot_xy_pred(m):
+def plot_xy_pred():
     """
     Make a plot similar to those we make using the NN
     """
-    t_min = 4
-    t_max = 20
-    t_step = 0.1
+    steps = 10
+    dt = 0.1
 
-    # Set up some new data to get predictions for
-    newX1 = np.arange(t_min,t_max,t_step)[:,None]
-    newX1 = np.hstack([newX1, np.zeros_like(newX1)])  # get first dimension (x position) only
-    noise_dict = {'output_index':newX1[:,1:].astype(int)}
-    pred1 = m.predict(newX1, Y_metadata=noise_dict)
-    newX2 = np.arange(t_min, t_max, t_step)[:,None]
-    newX2 = np.hstack([newX2, np.ones_like(newX2)])  # get second dimension (y position) only
-    noise_dict = {'output_index':newX2[:,1:].astype(int)}
-    pred2 = m.predict(newX2, Y_metadata=noise_dict)
-
-    # Reformat predictions as means and covariances
-    means = [ np.hstack((pred1[0][i],pred2[0][i])) for i in range(len(pred1[0]))]
-    covariances = [ np.vstack((np.hstack((pred1[1][i],0)),np.hstack((0,pred2[1][i])))) for i in range(len(pred1[0]))]
-
-    # Now do the actual plotting
+    # plot actual positions
     plt.plot(actual_positions_x, actual_positions_y, 'rx', mew=2)
-    
-    for i in range(len(newX1)):
-        mu = means[i]
-        sigma = covariances[i]
-        
-        x, y = np.random.multivariate_normal(mu, sigma, 1000).T
 
-        plt.scatter(x,y, color='blue', alpha=0.01, edgecolors="none")
+    for j in range(1,len(actual_position_time)):
+
+        print("Calculating step %s/%s" % (j, len(actual_position_time)))
+
+        # We'll only consider data from before this latest step
+        times = actual_position_time[0:j]
+        positions_x = actual_positions_x[0:j]
+        positions_y = actual_positions_y[0:j]
+        
+        # Get a trained model
+        m = train_gp_model(times, positions_x, positions_y)
+
+        # Set up some new data to get predictions for
+        start_time = actual_position_time[j]
+
+        # predict further in the future on the last datapoint
+        if j==len(actual_position_time)-1:
+            steps = 10
+
+        newX1 = np.arange(start_time, start_time + steps*dt, dt)[:,None]
+        newX1 = np.hstack([newX1, np.zeros_like(newX1)])  # get first dimension (x position) only
+        noise_dict = {'output_index':newX1[:,1:].astype(int)}
+        pred1 = m.predict(newX1, Y_metadata=noise_dict)
+
+        newX2 = np.arange(start_time, start_time + steps*dt, dt)[:,None]
+        newX2 = np.hstack([newX2, np.ones_like(newX2)])  # get second dimension (y position) only
+        noise_dict = {'output_index':newX2[:,1:].astype(int)}
+        pred2 = m.predict(newX2, Y_metadata=noise_dict)
+
+        # Reformat predictions as means and covariances
+        means = [ np.hstack((pred1[0][i],pred2[0][i])) for i in range(len(pred1[0]))]
+        covariances = [ np.vstack((np.hstack((pred1[1][i],0)),np.hstack((0,pred2[1][i])))) for i in range(len(pred1[0]))]
+
+        # Now do the actual plotting
+        
+        for i in range(len(newX1)):
+            mu = means[i]
+            sigma = covariances[i]
+            
+            x, y = np.random.multivariate_normal(mu, sigma, 100).T
+
+            plt.scatter(x,y, color='blue', alpha=0.01, edgecolors="none")
 
     plt.xlabel("x Position")
     plt.ylabel("y Position")
@@ -91,6 +91,4 @@ def plot_xy_pred(m):
     plt.ylim((-0.8,0.8))
     plt.show()
 
-m = train_gp_model()
-plot_xy_pred(m)
-#plot_gp_regression(m, xlim=(0,20), ylim1=(-0.8, 0.8), ylim2=(-0.2, 0.2))
+plot_xy_pred()

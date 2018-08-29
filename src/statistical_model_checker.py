@@ -241,11 +241,14 @@ class OnlinePredictionNetwork():
         center = (mu[0], mu[1])
 
         ellipse = patches.Ellipse(center, width, height, angle=angle)
-        #print("")
-        #print("val: %s" % val)
-        #print("center: %s\nwidth: %s\nheight: %s\nangle: %s" % (center, width, height, angle))
+        result = ellipse.contains_point(val)
+
+        if result == False:
+            print("")
+            print("val: %s" % val)
+            print("center: %s\nwidth: %s\nheight: %s\nangle: %s" % (center, width, height, angle))
         
-        return(ellipse.contains_point(val))
+        return(result)
 
     def get_io_data(self):
         """
@@ -264,6 +267,10 @@ class OnlinePredictionNetwork():
         # Calculate outputs as the subsequent steps
         o = [ self.position_history[i:N-(self.num_steps-i)] for i in range(1,self.num_steps+1)]
         opt = np.concatenate(o, axis=2)
+
+        # Add gaussian measurement noise
+        ipt = ipt + 0.001*np.random.normal(size=ipt.shape)
+        opt = opt + 0.001*np.random.normal(size=opt.shape)
 
         return(ipt, opt)
     
@@ -324,7 +331,11 @@ class OnlinePredictionNetwork():
 
         for i in range(num_samples):
             # This gives a (num_steps x batch_size x output_size), ie (100 x 1 x 4), numpy array. 
-            all_pred = sess.run(nn.predicted_outputs, { nn.inputs: self.position_history })
+
+            # Add noise to input
+            ipt = self.position_history + 0.001*np.random.normal(size=self.position_history.shape)
+
+            all_pred = sess.run(nn.predicted_outputs, { nn.inputs: ipt })
 
             # We're really only interested in the last prediction: the one for the next step
             next_pred = all_pred[-1][0]

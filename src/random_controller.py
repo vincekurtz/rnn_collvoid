@@ -33,7 +33,6 @@ p_idx = np.array([i for i in range(len(delta_ps))])
 while not rospy.is_shutdown():
     # choose a random direction
     idx = np.random.choice(p_idx)
-    idx = 8
 
     delta_p = delta_ps[idx]
     p.x = delta_p[0]

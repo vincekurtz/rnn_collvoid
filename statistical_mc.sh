@@ -8,7 +8,7 @@
 ##
 
 ##### Parameters ######
-theta=0.80     # probability with which we'd like the specification to be satisfied
+theta=0.85     # probability with which we'd like the specification to be satisfied
 delta=0.05    # half-width of indifference region  
 alpha=0.1     # target Type-I (false positive) error
 beta=0.1      # target Type-II (false negative) error

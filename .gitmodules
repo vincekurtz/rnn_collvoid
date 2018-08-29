@@ -1,0 +1,3 @@
+[submodule "src/do-mpc"]
+	path = src/do-mpc
+	url = https://github.com/do-mpc/do-mpc

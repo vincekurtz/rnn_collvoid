@@ -256,6 +256,9 @@ class OnlinePredictionNetwork():
 
             # Update the ROS pose message
             pose_prediction.header = self.header   
+           
+            # Using a future timestamp causes problesm in rviz etc, but it is
+            # useful for subscribers so they know exactly when this prediction was for
             pose_prediction.header.stamp += rospy.Duration.from_sec(self.TIMESTEP) * (i+1)
 
             pose_prediction.pose.pose.position.x = x

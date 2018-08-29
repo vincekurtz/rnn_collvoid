@@ -238,10 +238,7 @@ while not rospy.is_shutdown():
     rospy.spin()
 
 # plot stuff
-print(actual_position_time)
-print(actual_positions_x)
-print(actual_positions_y)
-plot_gp_regression(xlim=(0,10), ylim1=(-0.8, 0.8), ylim2=(-0.2, 0.2))
+#plot_gp_regression(xlim=(0,10), ylim1=(-0.8, 0.8), ylim2=(-0.2, 0.2))
 #plot_recorded_data2(xlim=(0,10), ylim1=(-0.8,0.8), ylim2=(-0.2,0.2))
-#plot_recorded_data()
+plot_recorded_data()
 #plot_recorded_data2(xlim=(50,60), ylim1=(-0.8,0.8), ylim2=(-0.2,0.2))

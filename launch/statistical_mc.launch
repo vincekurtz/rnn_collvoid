@@ -1,8 +1,0 @@
-<launch>
-
-    <node pkg="rnn_collvoid" type="random_controller.py" name="random_control" />
-
-    <node pkg="rnn_collvoid" type="statistical_model_checker.py" name="model_checker" output="screen" required="true"/>
-
-</launch>
-

@@ -12,6 +12,25 @@ After observing obstacle positions and velocities for a while, an LSTM network p
 - python
 - tensorflow
 
+### Installation
+
+Install the dependencies
+
+Clone this repo to your catkin workspace
+`git clone https://github.com/vincekurtz/rnn_collvoid`
+
+Initialize the do-mpc submodule
+```
+git submodule init
+git submodule update
+```
+
+Build the project:
+```
+cd [catkin_ws]
+catkin_make
+```
+
 ### Usage
 
 Make predictions in real-time, and make a plot of predictions afterwards:

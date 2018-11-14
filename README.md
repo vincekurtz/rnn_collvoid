@@ -1,29 +1,25 @@
-# Time-Dependent Collision Avoidance based on a Recurrent Network
+# Predicting Obstacle Motion with a Recurrent Network for Dynamic Collision Avoidance
 
-### Basic Idea
+![Multi-agent Collision Avoidance Image](multiagend_demo.png)
 
-After observing obstacle positions and velocities for a while, an LSTM network predicts future obstacle positions and uses these predictions for collision avoidace
+An LSTM network predicts future obstacle positions based on realtime predictions and uses these predictions for collision avoidace.
+Further details are available in [this paper](https://arxiv.org/abs/1811.01075).
 
 ### Dependencies
 
+- python
 - ROS Kinetic
 - Stage simulator
 - stage\_ros
-- python
 - tensorflow
+- GPy
 
 ### Installation
 
 Install the dependencies
 
-Clone this repo to your catkin workspace
+Clone this repo to your catkin workspace source folder
 `git clone https://github.com/vincekurtz/rnn_collvoid`
-
-Initialize the do-mpc submodule
-```
-git submodule init
-git submodule update
-```
 
 Build the project:
 ```

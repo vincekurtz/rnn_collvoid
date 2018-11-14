@@ -19,7 +19,10 @@ Further details are available in [this paper](https://arxiv.org/abs/1811.01075).
 Install the dependencies
 
 Clone this repo to your catkin workspace source folder
-`git clone https://github.com/vincekurtz/rnn_collvoid`
+```
+cd [catkin_ws]/src
+git clone https://github.com/vincekurtz/rnn_collvoid
+```
 
 Build the project:
 ```

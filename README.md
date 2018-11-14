@@ -1,8 +1,8 @@
 # Predicting Obstacle Motion with a Recurrent Network for Dynamic Collision Avoidance
 
-![Multi-agent Collision Avoidance Image](multiagend_demo.png)
+![Multi-agent Collision Avoidance Image](multiagent_demo.png)
 
-An LSTM network predicts future obstacle positions based on realtime predictions and uses these predictions for collision avoidace.
+An LSTM network predicts obstacle motion from realtime observations and uses these predictions for collision avoidace.
 Further details are available in [this paper](https://arxiv.org/abs/1811.01075).
 
 ### Dependencies
